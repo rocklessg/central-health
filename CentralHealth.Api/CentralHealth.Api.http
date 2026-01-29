@@ -1,0 +1,6 @@
+@CentralHealth.Api_HostAddress = http://localhost:5267
+
+GET {{CentralHealth.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
