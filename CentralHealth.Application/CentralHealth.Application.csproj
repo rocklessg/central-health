@@ -16,4 +16,8 @@
     <ProjectReference Include="..\CentralHealth.Domain\CentralHealth.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Folder Include="DTOs\Users\" />
+  </ItemGroup>
+
 </Project>

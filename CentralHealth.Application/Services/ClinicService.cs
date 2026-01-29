@@ -12,7 +12,6 @@ public class ClinicService : IClinicService
     private readonly IRepository<Clinic> _clinicRepository;
     private readonly IRepository<Facility> _facilityRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<ClinicService> _logger;
 
@@ -20,14 +19,12 @@ public class ClinicService : IClinicService
         IRepository<Clinic> clinicRepository,
         IRepository<Facility> facilityRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<ClinicService> logger)
     {
         _clinicRepository = clinicRepository;
         _facilityRepository = facilityRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -42,32 +39,31 @@ public class ClinicService : IClinicService
             if (!isValid)
                 return ApiResponse<ClinicDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var codeExists = await _clinicRepository.Query()
-                .AnyAsync(c => c.FacilityId == facilityId && c.Code == request.Code && !c.IsDeleted, cancellationToken);
+                .AnyAsync(c => c.FacilityId == request.FacilityId && c.Code == request.Code && !c.IsDeleted, cancellationToken);
 
             if (codeExists)
                 return ApiResponse<ClinicDto>.FailureResponse("Clinic code already exists");
 
-            var facility = await _facilityRepository.GetByIdAsync(facilityId, cancellationToken);
+            var facility = await _facilityRepository.GetByIdAsync(request.FacilityId, cancellationToken);
 
             var clinic = new Clinic
             {
                 Id = Guid.NewGuid(),
-                FacilityId = facilityId,
+                FacilityId = request.FacilityId,
                 Name = request.Name,
                 Code = request.Code,
                 Description = request.Description,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = request.Username
             };
 
             await _clinicRepository.AddAsync(clinic, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Clinic created. ClinicId={ClinicId}, Code={Code}", clinic.Id, clinic.Code);
+            _logger.LogInformation("Clinic created. ClinicId={ClinicId}, Code={Code}, CreatedBy={CreatedBy}", 
+                clinic.Id, clinic.Code, request.Username);
 
             return ApiResponse<ClinicDto>.SuccessResponse(MapToDto(clinic, facility?.Name ?? ""), "Clinic created successfully");
         }
@@ -80,18 +76,19 @@ public class ClinicService : IClinicService
 
     public async Task<ApiResponse<ClinicDto>> GetClinicByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var clinic = await _clinicRepository.Query()
                 .Include(c => c.Facility)
                 .FirstOrDefaultAsync(c => c.Id == id && c.FacilityId == facilityId && !c.IsDeleted, cancellationToken);
 
             if (clinic == null)
                 return ApiResponse<ClinicDto>.FailureResponse("Clinic not found");
+
+            _logger.LogInformation("Clinic retrieved. ClinicId={ClinicId}", id);
 
             return ApiResponse<ClinicDto>.SuccessResponse(MapToDto(clinic, clinic.Facility.Name));
         }
@@ -108,11 +105,12 @@ public class ClinicService : IClinicService
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
+            _logger.LogInformation("Loading clinics list. FacilityId={FacilityId}, SearchTerm={SearchTerm}", 
+                request.FacilityId, request.SearchTerm);
 
             var query = _clinicRepository.Query()
                 .Include(c => c.Facility)
-                .Where(c => c.FacilityId == facilityId && !c.IsDeleted);
+                .Where(c => c.FacilityId == request.FacilityId && !c.IsDeleted);
 
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
@@ -120,10 +118,15 @@ public class ClinicService : IClinicService
                 query = query.Where(c =>
                     c.Name.ToLower().Contains(searchTerm) ||
                     c.Code.ToLower().Contains(searchTerm));
+                
+                _logger.LogInformation("Search executed: SearchTerm={SearchTerm}", request.SearchTerm);
             }
 
             if (request.IsActive.HasValue)
+            {
                 query = query.Where(c => c.IsActive == request.IsActive.Value);
+                _logger.LogInformation("Filter applied: IsActive={IsActive}", request.IsActive);
+            }
 
             query = query.OrderBy(c => c.Name);
 
@@ -137,6 +140,10 @@ public class ClinicService : IClinicService
             var dtos = clinics.Select(c => MapToDto(c, c.Facility.Name));
 
             var result = PagedResult<ClinicDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
+
+            _logger.LogInformation("Clinics list loaded. TotalCount={TotalCount}, PageNumber={PageNumber}", 
+                totalCount, request.PageNumber);
+
             return ApiResponse<PagedResult<ClinicDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
@@ -157,11 +164,9 @@ public class ClinicService : IClinicService
             if (!isValid)
                 return ApiResponse<ClinicDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var clinic = await _clinicRepository.Query()
                 .Include(c => c.Facility)
-                .FirstOrDefaultAsync(c => c.Id == id && c.FacilityId == facilityId && !c.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(c => c.Id == id && c.FacilityId == request.FacilityId && !c.IsDeleted, cancellationToken);
 
             if (clinic == null)
                 return ApiResponse<ClinicDto>.FailureResponse("Clinic not found");
@@ -170,12 +175,12 @@ public class ClinicService : IClinicService
             clinic.Description = request.Description;
             clinic.IsActive = request.IsActive;
             clinic.UpdatedAt = DateTime.UtcNow;
-            clinic.UpdatedBy = _currentUserService.Username;
+            clinic.UpdatedBy = request.Username;
 
             _clinicRepository.Update(clinic);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Clinic updated. ClinicId={ClinicId}", id);
+            _logger.LogInformation("Clinic updated. ClinicId={ClinicId}, UpdatedBy={UpdatedBy}", id, request.Username);
 
             return ApiResponse<ClinicDto>.SuccessResponse(MapToDto(clinic, clinic.Facility.Name), "Clinic updated successfully");
         }
@@ -188,12 +193,12 @@ public class ClinicService : IClinicService
 
     public async Task<ApiResponse<bool>> DeleteClinicAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var clinic = await _clinicRepository.Query()
                 .FirstOrDefaultAsync(c => c.Id == id && c.FacilityId == facilityId && !c.IsDeleted, cancellationToken);
 
@@ -202,12 +207,12 @@ public class ClinicService : IClinicService
 
             clinic.IsDeleted = true;
             clinic.UpdatedAt = DateTime.UtcNow;
-            clinic.UpdatedBy = _currentUserService.Username;
+            clinic.UpdatedBy = username;
 
             _clinicRepository.Update(clinic);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Clinic deleted. ClinicId={ClinicId}", id);
+            _logger.LogInformation("Clinic deleted. ClinicId={ClinicId}, DeletedBy={DeletedBy}", id, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "Clinic deleted successfully");
         }

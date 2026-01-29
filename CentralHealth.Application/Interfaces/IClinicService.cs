@@ -11,6 +11,7 @@ public interface IClinicService
 
     Task<ApiResponse<ClinicDto>> GetClinicByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<ClinicDto>>> GetClinicsAsync(
@@ -24,5 +25,7 @@ public interface IClinicService
 
     Task<ApiResponse<bool>> DeleteClinicAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default);
 }

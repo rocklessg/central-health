@@ -13,7 +13,6 @@ public class FacilityService : IFacilityService
     private readonly IRepository<Facility> _facilityRepository;
     private readonly IRepository<User> _userRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<FacilityService> _logger;
 
@@ -21,14 +20,12 @@ public class FacilityService : IFacilityService
         IRepository<Facility> facilityRepository,
         IRepository<User> userRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<FacilityService> logger)
     {
         _facilityRepository = facilityRepository;
         _userRepository = userRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -50,13 +47,13 @@ public class FacilityService : IFacilityService
                 return ApiResponse<CreateFacilityResponse>.FailureResponse("Facility code already exists");
 
             var usernameExists = await _userRepository.Query()
-                .AnyAsync(u => u.Username == request.AdminUser.Username && !u.IsDeleted, cancellationToken);
+                .AnyAsync(u => u.Username == request.AdminUsername && !u.IsDeleted, cancellationToken);
 
             if (usernameExists)
                 return ApiResponse<CreateFacilityResponse>.FailureResponse("Admin username already exists");
 
             var emailExists = await _userRepository.Query()
-                .AnyAsync(u => u.Email == request.AdminUser.Email && !u.IsDeleted, cancellationToken);
+                .AnyAsync(u => u.Email == request.AdminEmail && !u.IsDeleted, cancellationToken);
 
             if (emailExists)
                 return ApiResponse<CreateFacilityResponse>.FailureResponse("Admin email already exists");
@@ -82,11 +79,11 @@ public class FacilityService : IFacilityService
             {
                 Id = Guid.NewGuid(),
                 FacilityId = facility.Id,
-                Username = request.AdminUser.Username,
-                Email = request.AdminUser.Email,
-                FirstName = request.AdminUser.FirstName,
-                LastName = request.AdminUser.LastName,
-                PasswordHash = HashPassword(request.AdminUser.Password),
+                Username = request.AdminUsername,
+                Email = request.AdminEmail,
+                FirstName = request.AdminFirstName,
+                LastName = request.AdminLastName,
+                PasswordHash = HashPassword(request.AdminPassword),
                 Role = UserRole.Admin,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -138,99 +135,14 @@ public class FacilityService : IFacilityService
             if (facility == null)
                 return ApiResponse<FacilityDto>.FailureResponse("Facility not found");
 
+            _logger.LogInformation("Facility retrieved. FacilityId={FacilityId}", id);
+
             return ApiResponse<FacilityDto>.SuccessResponse(MapToDto(facility));
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error retrieving facility. FacilityId={FacilityId}", id);
             return ApiResponse<FacilityDto>.FailureResponse("An error occurred while retrieving the facility");
-        }
-    }
-
-    public async Task<ApiResponse<IEnumerable<FacilityDto>>> GetAllFacilitiesAsync(
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var facilities = await _facilityRepository.Query()
-                .Include(f => f.Clinics.Where(c => !c.IsDeleted))
-                .Include(f => f.Users.Where(u => !u.IsDeleted))
-                .Where(f => !f.IsDeleted)
-                .OrderBy(f => f.Name)
-                .ToListAsync(cancellationToken);
-
-            var dtos = facilities.Select(MapToDto);
-            return ApiResponse<IEnumerable<FacilityDto>>.SuccessResponse(dtos);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving facilities");
-            return ApiResponse<IEnumerable<FacilityDto>>.FailureResponse("An error occurred while retrieving facilities");
-        }
-    }
-
-    public async Task<ApiResponse<FacilityDto>> GetCurrentFacilityAsync(
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var facilityId = _currentUserService.FacilityId;
-
-            var facility = await _facilityRepository.Query()
-                .Include(f => f.Clinics.Where(c => !c.IsDeleted))
-                .Include(f => f.Users.Where(u => !u.IsDeleted))
-                .FirstOrDefaultAsync(f => f.Id == facilityId && !f.IsDeleted, cancellationToken);
-
-            if (facility == null)
-                return ApiResponse<FacilityDto>.FailureResponse("Facility not found");
-
-            return ApiResponse<FacilityDto>.SuccessResponse(MapToDto(facility));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error retrieving facility");
-            return ApiResponse<FacilityDto>.FailureResponse("An error occurred while retrieving the facility");
-        }
-    }
-
-    public async Task<ApiResponse<FacilityDto>> UpdateFacilityAsync(
-        UpdateFacilityRequest request,
-        CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            var (isValid, errors) = await _validationService.ValidateAsync(request, cancellationToken);
-            if (!isValid)
-                return ApiResponse<FacilityDto>.FailureResponse(errors);
-
-            var facilityId = _currentUserService.FacilityId;
-
-            var facility = await _facilityRepository.Query()
-                .Include(f => f.Clinics.Where(c => !c.IsDeleted))
-                .Include(f => f.Users.Where(u => !u.IsDeleted))
-                .FirstOrDefaultAsync(f => f.Id == facilityId && !f.IsDeleted, cancellationToken);
-
-            if (facility == null)
-                return ApiResponse<FacilityDto>.FailureResponse("Facility not found");
-
-            facility.Name = request.Name;
-            facility.Address = request.Address;
-            facility.Phone = request.Phone;
-            facility.Email = request.Email;
-            facility.UpdatedAt = DateTime.UtcNow;
-            facility.UpdatedBy = _currentUserService.Username;
-
-            _facilityRepository.Update(facility);
-            await _unitOfWork.SaveChangesAsync(cancellationToken);
-
-            _logger.LogInformation("Facility updated. FacilityId={FacilityId}", facilityId);
-
-            return ApiResponse<FacilityDto>.SuccessResponse(MapToDto(facility), "Facility updated successfully");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error updating facility");
-            return ApiResponse<FacilityDto>.FailureResponse("An error occurred while updating the facility");
         }
     }
 

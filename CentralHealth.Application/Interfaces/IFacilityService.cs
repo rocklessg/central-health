@@ -12,14 +12,4 @@ public interface IFacilityService
     Task<ApiResponse<FacilityDto>> GetFacilityByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);
-
-    Task<ApiResponse<IEnumerable<FacilityDto>>> GetAllFacilitiesAsync(
-        CancellationToken cancellationToken = default);
-
-    Task<ApiResponse<FacilityDto>> GetCurrentFacilityAsync(
-        CancellationToken cancellationToken = default);
-
-    Task<ApiResponse<FacilityDto>> UpdateFacilityAsync(
-        UpdateFacilityRequest request,
-        CancellationToken cancellationToken = default);
 }

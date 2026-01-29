@@ -12,13 +12,17 @@ public static class DependencyInjection
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
         services.AddScoped<IValidationService, ValidationService>();
+        
+        // Core services for Front Desk operations
         services.AddScoped<IRecordsService, RecordsService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
         services.AddScoped<IPaymentService, PaymentService>();
-        services.AddScoped<IPatientService, PatientService>();
-        services.AddScoped<IClinicService, ClinicService>();
+        
+        // Setup and Admin services
         services.AddScoped<IFacilityService, FacilityService>();
+        services.AddScoped<IClinicService, ClinicService>();
+        services.AddScoped<IPatientService, PatientService>();
         services.AddScoped<IMedicalServiceService, MedicalServiceService>();
         services.AddScoped<IUserService, UserService>();
 

@@ -1,8 +1,9 @@
+using CentralHealth.Application.Common;
 using CentralHealth.Domain.Enums;
 
 namespace CentralHealth.Application.DTOs.Appointments;
 
-public class CreateAppointmentRequest
+public class CreateAppointmentRequest : AuthenticatedRequest
 {
     public Guid PatientId { get; set; }
     public Guid ClinicId { get; set; }

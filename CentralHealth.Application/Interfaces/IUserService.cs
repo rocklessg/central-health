@@ -11,6 +11,7 @@ public interface IUserService
 
     Task<ApiResponse<UserDto>> GetUserByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<UserDto>>> GetUsersAsync(
@@ -24,5 +25,8 @@ public interface IUserService
 
     Task<ApiResponse<bool>> DeactivateUserAsync(
         Guid id,
+        Guid facilityId,
+        Guid currentUserId,
+        string username,
         CancellationToken cancellationToken = default);
 }

@@ -11,6 +11,7 @@ public interface IAppointmentService
 
     Task<ApiResponse<AppointmentDto>> GetAppointmentByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<AppointmentDto>>> GetAppointmentsAsync(
@@ -19,5 +20,7 @@ public interface IAppointmentService
 
     Task<ApiResponse<bool>> CancelAppointmentAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default);
 }

@@ -13,7 +13,6 @@ public class PatientService : IPatientService
     private readonly IRepository<PatientWallet> _walletRepository;
     private readonly IRepository<WalletTransaction> _walletTransactionRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<PatientService> _logger;
 
@@ -22,7 +21,6 @@ public class PatientService : IPatientService
         IRepository<PatientWallet> walletRepository,
         IRepository<WalletTransaction> walletTransactionRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<PatientService> logger)
     {
@@ -30,7 +28,6 @@ public class PatientService : IPatientService
         _walletRepository = walletRepository;
         _walletTransactionRepository = walletTransactionRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -45,13 +42,11 @@ public class PatientService : IPatientService
             if (!isValid)
                 return ApiResponse<PatientDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var patient = new Patient
             {
                 Id = Guid.NewGuid(),
                 PatientCode = GeneratePatientCode(),
-                FacilityId = facilityId,
+                FacilityId = request.FacilityId,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
                 MiddleName = request.MiddleName,
@@ -61,7 +56,7 @@ public class PatientService : IPatientService
                 Gender = request.Gender,
                 Address = request.Address,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = request.Username
             };
 
             await _patientRepository.AddAsync(patient, cancellationToken);
@@ -73,14 +68,14 @@ public class PatientService : IPatientService
                 Balance = request.InitialWalletBalance,
                 Currency = "NGN",
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = request.Username
             };
 
             await _walletRepository.AddAsync(wallet, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Patient created. PatientId={PatientId}, PatientCode={PatientCode}", 
-                patient.Id, patient.PatientCode);
+            _logger.LogInformation("Patient created. PatientId={PatientId}, PatientCode={PatientCode}, CreatedBy={CreatedBy}", 
+                patient.Id, patient.PatientCode, request.Username);
 
             return ApiResponse<PatientDto>.SuccessResponse(MapToDto(patient, wallet), "Patient created successfully");
         }
@@ -93,18 +88,19 @@ public class PatientService : IPatientService
 
     public async Task<ApiResponse<PatientDto>> GetPatientByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var patient = await _patientRepository.Query()
                 .Include(p => p.Wallet)
                 .FirstOrDefaultAsync(p => p.Id == id && p.FacilityId == facilityId && !p.IsDeleted, cancellationToken);
 
             if (patient == null)
                 return ApiResponse<PatientDto>.FailureResponse("Patient not found");
+
+            _logger.LogInformation("Patient retrieved. PatientId={PatientId}", id);
 
             return ApiResponse<PatientDto>.SuccessResponse(MapToDto(patient, patient.Wallet));
         }
@@ -121,11 +117,12 @@ public class PatientService : IPatientService
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
+            _logger.LogInformation("Loading patients list. FacilityId={FacilityId}, SearchTerm={SearchTerm}", 
+                request.FacilityId, request.SearchTerm);
 
             var query = _patientRepository.Query()
                 .Include(p => p.Wallet)
-                .Where(p => p.FacilityId == facilityId && !p.IsDeleted);
+                .Where(p => p.FacilityId == request.FacilityId && !p.IsDeleted);
 
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
@@ -135,6 +132,8 @@ public class PatientService : IPatientService
                     p.LastName.ToLower().Contains(searchTerm) ||
                     p.PatientCode.ToLower().Contains(searchTerm) ||
                     (p.Phone != null && p.Phone.Contains(searchTerm)));
+                
+                _logger.LogInformation("Search executed: SearchTerm={SearchTerm}", request.SearchTerm);
             }
 
             query = query.OrderBy(p => p.LastName).ThenBy(p => p.FirstName);
@@ -149,6 +148,10 @@ public class PatientService : IPatientService
             var dtos = patients.Select(p => MapToDto(p, p.Wallet));
 
             var result = PagedResult<PatientDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
+
+            _logger.LogInformation("Patients list loaded. TotalCount={TotalCount}, PageNumber={PageNumber}", 
+                totalCount, request.PageNumber);
+
             return ApiResponse<PagedResult<PatientDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
@@ -169,11 +172,9 @@ public class PatientService : IPatientService
             if (!isValid)
                 return ApiResponse<PatientDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var patient = await _patientRepository.Query()
                 .Include(p => p.Wallet)
-                .FirstOrDefaultAsync(p => p.Id == id && p.FacilityId == facilityId && !p.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(p => p.Id == id && p.FacilityId == request.FacilityId && !p.IsDeleted, cancellationToken);
 
             if (patient == null)
                 return ApiResponse<PatientDto>.FailureResponse("Patient not found");
@@ -187,12 +188,12 @@ public class PatientService : IPatientService
             patient.Gender = request.Gender;
             patient.Address = request.Address;
             patient.UpdatedAt = DateTime.UtcNow;
-            patient.UpdatedBy = _currentUserService.Username;
+            patient.UpdatedBy = request.Username;
 
             _patientRepository.Update(patient);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Patient updated. PatientId={PatientId}", id);
+            _logger.LogInformation("Patient updated. PatientId={PatientId}, UpdatedBy={UpdatedBy}", id, request.Username);
 
             return ApiResponse<PatientDto>.SuccessResponse(MapToDto(patient, patient.Wallet), "Patient updated successfully");
         }
@@ -205,12 +206,12 @@ public class PatientService : IPatientService
 
     public async Task<ApiResponse<bool>> DeletePatientAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var patient = await _patientRepository.Query()
                 .FirstOrDefaultAsync(p => p.Id == id && p.FacilityId == facilityId && !p.IsDeleted, cancellationToken);
 
@@ -219,12 +220,12 @@ public class PatientService : IPatientService
 
             patient.IsDeleted = true;
             patient.UpdatedAt = DateTime.UtcNow;
-            patient.UpdatedBy = _currentUserService.Username;
+            patient.UpdatedBy = username;
 
             _patientRepository.Update(patient);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Patient deleted. PatientId={PatientId}", id);
+            _logger.LogInformation("Patient deleted. PatientId={PatientId}, DeletedBy={DeletedBy}", id, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "Patient deleted successfully");
         }
@@ -237,6 +238,8 @@ public class PatientService : IPatientService
 
     public async Task<ApiResponse<bool>> TopUpWalletAsync(
         Guid patientId,
+        Guid facilityId,
+        string username,
         decimal amount,
         CancellationToken cancellationToken = default)
     {
@@ -244,8 +247,6 @@ public class PatientService : IPatientService
         {
             if (amount <= 0)
                 return ApiResponse<bool>.FailureResponse("Amount must be greater than zero");
-
-            var facilityId = _currentUserService.FacilityId;
 
             var patient = await _patientRepository.Query()
                 .Include(p => p.Wallet)
@@ -272,14 +273,15 @@ public class PatientService : IPatientService
                 BalanceBefore = balanceBefore,
                 BalanceAfter = wallet.Balance,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = username
             };
 
             _walletRepository.Update(wallet);
             await _walletTransactionRepository.AddAsync(transaction, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Wallet topped up. PatientId={PatientId}, Amount={Amount}", patientId, amount);
+            _logger.LogInformation("Wallet topped up. PatientId={PatientId}, Amount={Amount}, TopUpBy={TopUpBy}", 
+                patientId, amount, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "Wallet topped up successfully");
         }

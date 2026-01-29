@@ -11,6 +11,7 @@ public interface IMedicalServiceService
 
     Task<ApiResponse<MedicalServiceDto>> GetMedicalServiceByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<MedicalServiceDto>>> GetMedicalServicesAsync(
@@ -24,5 +25,7 @@ public interface IMedicalServiceService
 
     Task<ApiResponse<bool>> DeleteMedicalServiceAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default);
 }

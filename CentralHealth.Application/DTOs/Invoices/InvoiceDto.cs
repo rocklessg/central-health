@@ -1,3 +1,5 @@
+using CentralHealth.Application.DTOs.Payments;
+
 namespace CentralHealth.Application.DTOs.Invoices;
 
 public class InvoiceDto
@@ -35,16 +37,4 @@ public class InvoiceItemDto
     public decimal UnitPrice { get; set; }
     public decimal DiscountAmount { get; set; }
     public decimal TotalPrice { get; set; }
-}
-
-public class PaymentDto
-{
-    public Guid Id { get; set; }
-    public string PaymentReference { get; set; } = string.Empty;
-    public decimal Amount { get; set; }
-    public string Currency { get; set; } = "NGN";
-    public string Method { get; set; } = string.Empty;
-    public string Status { get; set; } = string.Empty;
-    public DateTime PaymentDate { get; set; }
-    public string? TransactionId { get; set; }
 }

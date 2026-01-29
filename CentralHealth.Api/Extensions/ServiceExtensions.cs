@@ -1,7 +1,5 @@
 using CentralHealth.Api.Middleware;
-using CentralHealth.Api.Services;
 using CentralHealth.Application;
-using CentralHealth.Application.Interfaces;
 using CentralHealth.Infrastructure;
 using Microsoft.OpenApi.Models;
 using Serilog;
@@ -21,28 +19,9 @@ public static class ServiceExtensions
             {
                 Title = "CentralHealth API",
                 Version = "v1",
-                Description = "Healthcare Management API for CentralHealth"
-            });
-
-            options.AddSecurityDefinition("FacilityId", new OpenApiSecurityScheme
-            {
-                Description = "Facility ID header",
-                Name = "X-Facility-Id",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey
-            });
-
-            options.AddSecurityDefinition("UserId", new OpenApiSecurityScheme
-            {
-                Description = "User ID header",
-                Name = "X-User-Id",
-                In = ParameterLocation.Header,
-                Type = SecuritySchemeType.ApiKey
+                Description = "Healthcare Management API for Front Desk Operations"
             });
         });
-
-        services.AddHttpContextAccessor();
-        services.AddScoped<ICurrentUserService, CurrentUserService>();
 
         services.AddApplicationServices();
         services.AddInfrastructureServices(configuration);

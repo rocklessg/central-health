@@ -22,21 +22,21 @@ public class ClinicsController : ControllerBase
     public async Task<IActionResult> CreateClinic([FromBody] CreateClinicRequest request, CancellationToken cancellationToken)
     {
         var result = await _clinicService.CreateClinicAsync(request, cancellationToken);
-        return result.Success ? CreatedAtAction(nameof(GetClinic), new { id = result.Data!.Id }, result) : BadRequest(result);
+        return result.Success ? CreatedAtAction(nameof(GetClinic), new { id = result.Data!.Id, facilityId = request.FacilityId }, result) : BadRequest(result);
     }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<ClinicDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetClinic(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetClinic(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
     {
-        var result = await _clinicService.GetClinicByIdAsync(id, cancellationToken);
+        var result = await _clinicService.GetClinicByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpGet]
+    [HttpPost("search")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ClinicDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetClinics([FromQuery] GetClinicsRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetClinics([FromBody] GetClinicsRequest request, CancellationToken cancellationToken)
     {
         var result = await _clinicService.GetClinicsAsync(request, cancellationToken);
         return Ok(result);
@@ -54,9 +54,9 @@ public class ClinicsController : ControllerBase
     [HttpDelete("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> DeleteClinic(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> DeleteClinic(Guid id, [FromBody] CancelRequest request, CancellationToken cancellationToken)
     {
-        var result = await _clinicService.DeleteClinicAsync(id, cancellationToken);
+        var result = await _clinicService.DeleteClinicAsync(id, request.FacilityId, request.Username, cancellationToken);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 }

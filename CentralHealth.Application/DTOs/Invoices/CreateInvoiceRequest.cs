@@ -1,6 +1,8 @@
+using CentralHealth.Application.Common;
+
 namespace CentralHealth.Application.DTOs.Invoices;
 
-public class CreateInvoiceRequest
+public class CreateInvoiceRequest : AuthenticatedRequest
 {
     public Guid PatientId { get; set; }
     public Guid? AppointmentId { get; set; }

@@ -22,15 +22,15 @@ public class InvoicesController : ControllerBase
     public async Task<IActionResult> CreateInvoice([FromBody] CreateInvoiceRequest request, CancellationToken cancellationToken)
     {
         var result = await _invoiceService.CreateInvoiceAsync(request, cancellationToken);
-        return result.Success ? CreatedAtAction(nameof(GetInvoice), new { id = result.Data!.Id }, result) : BadRequest(result);
+        return result.Success ? CreatedAtAction(nameof(GetInvoice), new { id = result.Data!.Id, facilityId = request.FacilityId }, result) : BadRequest(result);
     }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<InvoiceDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetInvoice(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetInvoice(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
     {
-        var result = await _invoiceService.GetInvoiceByIdAsync(id, cancellationToken);
+        var result = await _invoiceService.GetInvoiceByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
 
@@ -45,9 +45,9 @@ public class InvoicesController : ControllerBase
     [HttpPatch("{id:guid}/cancel")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CancelInvoice(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> CancelInvoice(Guid id, [FromBody] CancelRequest request, CancellationToken cancellationToken)
     {
-        var result = await _invoiceService.CancelInvoiceAsync(id, cancellationToken);
+        var result = await _invoiceService.CancelInvoiceAsync(id, request.FacilityId, request.Username, cancellationToken);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 }

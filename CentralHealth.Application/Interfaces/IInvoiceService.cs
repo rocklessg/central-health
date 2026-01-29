@@ -11,6 +11,7 @@ public interface IInvoiceService
 
     Task<ApiResponse<InvoiceDto>> GetInvoiceByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<InvoiceDto>>> GetInvoicesAsync(
@@ -19,5 +20,7 @@ public interface IInvoiceService
 
     Task<ApiResponse<bool>> CancelInvoiceAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default);
 }

@@ -22,19 +22,19 @@ public class AppointmentsController : ControllerBase
     public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentRequest request, CancellationToken cancellationToken)
     {
         var result = await _appointmentService.CreateAppointmentAsync(request, cancellationToken);
-        return result.Success ? CreatedAtAction(nameof(GetAppointment), new { id = result.Data!.Id }, result) : BadRequest(result);
+        return result.Success ? CreatedAtAction(nameof(GetAppointment), new { id = result.Data!.Id, facilityId = request.FacilityId }, result) : BadRequest(result);
     }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<AppointmentDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetAppointment(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetAppointment(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
     {
-        var result = await _appointmentService.GetAppointmentByIdAsync(id, cancellationToken);
+        var result = await _appointmentService.GetAppointmentByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpGet]
+    [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<AppointmentDto>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetAppointments([FromQuery] GetAppointmentsRequest request, CancellationToken cancellationToken)
     {
@@ -45,9 +45,9 @@ public class AppointmentsController : ControllerBase
     [HttpPatch("{id:guid}/cancel")]
     [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> CancelAppointment(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> CancelAppointment(Guid id, [FromBody] CancelRequest request, CancellationToken cancellationToken)
     {
-        var result = await _appointmentService.CancelAppointmentAsync(id, cancellationToken);
+        var result = await _appointmentService.CancelAppointmentAsync(id, request.FacilityId, request.Username, cancellationToken);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 }

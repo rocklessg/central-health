@@ -8,14 +8,9 @@ public class CreateFacilityRequest
     public string? Phone { get; set; }
     public string? Email { get; set; }
     
-    public AdminUserDetails AdminUser { get; set; } = new();
-}
-
-public class AdminUserDetails
-{
-    public string Username { get; set; } = string.Empty;
-    public string Email { get; set; } = string.Empty;
-    public string FirstName { get; set; } = string.Empty;
-    public string LastName { get; set; } = string.Empty;
-    public string Password { get; set; } = string.Empty;
+    public string AdminUsername { get; set; } = string.Empty;
+    public string AdminEmail { get; set; } = string.Empty;
+    public string AdminFirstName { get; set; } = string.Empty;
+    public string AdminLastName { get; set; } = string.Empty;
+    public string AdminPassword { get; set; } = string.Empty;
 }

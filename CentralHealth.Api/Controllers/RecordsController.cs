@@ -10,12 +10,10 @@ namespace CentralHealth.Api.Controllers;
 public class RecordsController : ControllerBase
 {
     private readonly IRecordsService _recordsService;
-    private readonly ILogger<RecordsController> _logger;
 
-    public RecordsController(IRecordsService recordsService, ILogger<RecordsController> logger)
+    public RecordsController(IRecordsService recordsService)
     {
         _recordsService = recordsService;
-        _logger = logger;
     }
 
     [HttpGet]

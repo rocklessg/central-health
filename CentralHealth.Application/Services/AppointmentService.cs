@@ -14,7 +14,6 @@ public class AppointmentService : IAppointmentService
     private readonly IRepository<Patient> _patientRepository;
     private readonly IRepository<Clinic> _clinicRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<AppointmentService> _logger;
 
@@ -23,7 +22,6 @@ public class AppointmentService : IAppointmentService
         IRepository<Patient> patientRepository,
         IRepository<Clinic> clinicRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<AppointmentService> logger)
     {
@@ -31,7 +29,6 @@ public class AppointmentService : IAppointmentService
         _patientRepository = patientRepository;
         _clinicRepository = clinicRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -46,23 +43,21 @@ public class AppointmentService : IAppointmentService
             if (!isValid)
                 return ApiResponse<AppointmentDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var patient = await _patientRepository.Query()
-                .FirstOrDefaultAsync(p => p.Id == request.PatientId && p.FacilityId == facilityId && !p.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(p => p.Id == request.PatientId && p.FacilityId == request.FacilityId && !p.IsDeleted, cancellationToken);
 
             if (patient == null)
             {
-                _logger.LogWarning("Patient not found. PatientId={PatientId}", request.PatientId);
+                _logger.LogWarning("Patient not found. PatientId={PatientId}, FacilityId={FacilityId}", request.PatientId, request.FacilityId);
                 return ApiResponse<AppointmentDto>.FailureResponse("Patient not found");
             }
 
             var clinic = await _clinicRepository.Query()
-                .FirstOrDefaultAsync(c => c.Id == request.ClinicId && c.FacilityId == facilityId && !c.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(c => c.Id == request.ClinicId && c.FacilityId == request.FacilityId && !c.IsDeleted, cancellationToken);
 
             if (clinic == null)
             {
-                _logger.LogWarning("Clinic not found. ClinicId={ClinicId}", request.ClinicId);
+                _logger.LogWarning("Clinic not found. ClinicId={ClinicId}, FacilityId={FacilityId}", request.ClinicId, request.FacilityId);
                 return ApiResponse<AppointmentDto>.FailureResponse("Clinic not found");
             }
 
@@ -89,7 +84,7 @@ public class AppointmentService : IAppointmentService
                 Id = Guid.NewGuid(),
                 PatientId = request.PatientId,
                 ClinicId = request.ClinicId,
-                FacilityId = facilityId,
+                FacilityId = request.FacilityId,
                 AppointmentDate = request.AppointmentDate.Date,
                 AppointmentTime = request.AppointmentTime,
                 Type = request.Type,
@@ -97,15 +92,15 @@ public class AppointmentService : IAppointmentService
                 ReasonForVisit = request.ReasonForVisit,
                 Notes = request.Notes,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = request.Username
             };
 
             await _appointmentRepository.AddAsync(appointment, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Appointment created successfully. AppointmentId={AppointmentId}, PatientId={PatientId}, ClinicId={ClinicId}",
-                appointment.Id, appointment.PatientId, appointment.ClinicId);
+                "Appointment created successfully. AppointmentId={AppointmentId}, PatientId={PatientId}, ClinicId={ClinicId}, CreatedBy={CreatedBy}",
+                appointment.Id, appointment.PatientId, appointment.ClinicId, request.Username);
 
             var dto = MapToDto(appointment, patient, clinic);
             return ApiResponse<AppointmentDto>.SuccessResponse(dto, "Appointment created successfully");
@@ -119,21 +114,18 @@ public class AppointmentService : IAppointmentService
 
     public async Task<ApiResponse<AppointmentDto>> GetAppointmentByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var appointment = await _appointmentRepository.Query()
                 .Include(a => a.Patient)
                 .Include(a => a.Clinic)
                 .FirstOrDefaultAsync(a => a.Id == id && a.FacilityId == facilityId && !a.IsDeleted, cancellationToken);
 
             if (appointment == null)
-            {
                 return ApiResponse<AppointmentDto>.FailureResponse("Appointment not found");
-            }
 
             var dto = MapToDto(appointment, appointment.Patient, appointment.Clinic);
             return ApiResponse<AppointmentDto>.SuccessResponse(dto);
@@ -151,21 +143,32 @@ public class AppointmentService : IAppointmentService
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
+            _logger.LogInformation(
+                "Loading appointments list. FacilityId={FacilityId}, Filters: StartDate={StartDate}, EndDate={EndDate}, ClinicId={ClinicId}",
+                request.FacilityId, request.StartDate, request.EndDate, request.ClinicId);
 
             var query = _appointmentRepository.Query()
                 .Include(a => a.Patient)
                 .Include(a => a.Clinic)
-                .Where(a => a.FacilityId == facilityId && !a.IsDeleted);
+                .Where(a => a.FacilityId == request.FacilityId && !a.IsDeleted);
 
             if (request.StartDate.HasValue)
+            {
                 query = query.Where(a => a.AppointmentDate >= request.StartDate.Value.Date);
+                _logger.LogInformation("Filter applied: StartDate={StartDate}", request.StartDate);
+            }
 
             if (request.EndDate.HasValue)
+            {
                 query = query.Where(a => a.AppointmentDate <= request.EndDate.Value.Date);
+                _logger.LogInformation("Filter applied: EndDate={EndDate}", request.EndDate);
+            }
 
             if (request.ClinicId.HasValue)
+            {
                 query = query.Where(a => a.ClinicId == request.ClinicId.Value);
+                _logger.LogInformation("Filter applied: ClinicId={ClinicId}", request.ClinicId);
+            }
 
             query = query.OrderBy(a => a.AppointmentDate).ThenBy(a => a.AppointmentTime);
 
@@ -179,6 +182,11 @@ public class AppointmentService : IAppointmentService
             var dtos = appointments.Select(a => MapToDto(a, a.Patient, a.Clinic));
 
             var result = PagedResult<AppointmentDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
+
+            _logger.LogInformation(
+                "Appointments list loaded. TotalCount={TotalCount}, PageNumber={PageNumber}, PageSize={PageSize}",
+                totalCount, request.PageNumber, request.PageSize);
+
             return ApiResponse<PagedResult<AppointmentDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
@@ -191,38 +199,32 @@ public class AppointmentService : IAppointmentService
 
     public async Task<ApiResponse<bool>> CancelAppointmentAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var appointment = await _appointmentRepository.Query()
                 .FirstOrDefaultAsync(a => a.Id == id && a.FacilityId == facilityId && !a.IsDeleted, cancellationToken);
 
             if (appointment == null)
-            {
                 return ApiResponse<bool>.FailureResponse("Appointment not found");
-            }
 
             if (appointment.Status == AppointmentStatus.Cancelled)
-            {
                 return ApiResponse<bool>.FailureResponse("Appointment is already cancelled");
-            }
 
             if (appointment.Status == AppointmentStatus.Completed)
-            {
                 return ApiResponse<bool>.FailureResponse("Cannot cancel a completed appointment");
-            }
 
             appointment.Status = AppointmentStatus.Cancelled;
             appointment.UpdatedAt = DateTime.UtcNow;
-            appointment.UpdatedBy = _currentUserService.Username;
+            appointment.UpdatedBy = username;
 
             _appointmentRepository.Update(appointment);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Appointment cancelled. AppointmentId={AppointmentId}", id);
+            _logger.LogInformation("Appointment cancelled. AppointmentId={AppointmentId}, CancelledBy={CancelledBy}", id, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "Appointment cancelled successfully");
         }

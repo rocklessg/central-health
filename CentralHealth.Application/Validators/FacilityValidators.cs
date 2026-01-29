@@ -3,33 +3,6 @@ using FluentValidation;
 
 namespace CentralHealth.Application.Validators;
 
-public class AdminUserDetailsValidator : AbstractValidator<AdminUserDetails>
-{
-    public AdminUserDetailsValidator()
-    {
-        RuleFor(x => x.Username)
-            .NotEmpty().WithMessage("Admin username is required")
-            .MaximumLength(100).WithMessage("Admin username cannot exceed 100 characters");
-
-        RuleFor(x => x.Email)
-            .NotEmpty().WithMessage("Admin email is required")
-            .EmailAddress().WithMessage("Invalid admin email format")
-            .MaximumLength(200).WithMessage("Admin email cannot exceed 200 characters");
-
-        RuleFor(x => x.FirstName)
-            .NotEmpty().WithMessage("Admin first name is required")
-            .MaximumLength(100).WithMessage("Admin first name cannot exceed 100 characters");
-
-        RuleFor(x => x.LastName)
-            .NotEmpty().WithMessage("Admin last name is required")
-            .MaximumLength(100).WithMessage("Admin last name cannot exceed 100 characters");
-
-        RuleFor(x => x.Password)
-            .NotEmpty().WithMessage("Admin password is required")
-            .MinimumLength(6).WithMessage("Admin password must be at least 6 characters");
-    }
-}
-
 public class CreateFacilityRequestValidator : AbstractValidator<CreateFacilityRequest>
 {
     public CreateFacilityRequestValidator()
@@ -52,9 +25,26 @@ public class CreateFacilityRequestValidator : AbstractValidator<CreateFacilityRe
         RuleFor(x => x.Address)
             .MaximumLength(500).WithMessage("Address cannot exceed 500 characters");
 
-        RuleFor(x => x.AdminUser)
-            .NotNull().WithMessage("Admin user details are required")
-            .SetValidator(new AdminUserDetailsValidator());
+        RuleFor(x => x.AdminUsername)
+            .NotEmpty().WithMessage("Admin username is required")
+            .MaximumLength(100).WithMessage("Admin username cannot exceed 100 characters");
+
+        RuleFor(x => x.AdminEmail)
+            .NotEmpty().WithMessage("Admin email is required")
+            .EmailAddress().WithMessage("Invalid admin email format")
+            .MaximumLength(200).WithMessage("Admin email cannot exceed 200 characters");
+
+        RuleFor(x => x.AdminFirstName)
+            .NotEmpty().WithMessage("Admin first name is required")
+            .MaximumLength(100).WithMessage("Admin first name cannot exceed 100 characters");
+
+        RuleFor(x => x.AdminLastName)
+            .NotEmpty().WithMessage("Admin last name is required")
+            .MaximumLength(100).WithMessage("Admin last name cannot exceed 100 characters");
+
+        RuleFor(x => x.AdminPassword)
+            .NotEmpty().WithMessage("Admin password is required")
+            .MinimumLength(6).WithMessage("Admin password must be at least 6 characters");
     }
 }
 

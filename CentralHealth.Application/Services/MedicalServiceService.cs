@@ -12,7 +12,6 @@ public class MedicalServiceService : IMedicalServiceService
     private readonly IRepository<MedicalService> _medicalServiceRepository;
     private readonly IRepository<Clinic> _clinicRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<MedicalServiceService> _logger;
 
@@ -20,14 +19,12 @@ public class MedicalServiceService : IMedicalServiceService
         IRepository<MedicalService> medicalServiceRepository,
         IRepository<Clinic> clinicRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<MedicalServiceService> logger)
     {
         _medicalServiceRepository = medicalServiceRepository;
         _clinicRepository = clinicRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -42,10 +39,8 @@ public class MedicalServiceService : IMedicalServiceService
             if (!isValid)
                 return ApiResponse<MedicalServiceDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var clinic = await _clinicRepository.Query()
-                .FirstOrDefaultAsync(c => c.Id == request.ClinicId && c.FacilityId == facilityId && !c.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(c => c.Id == request.ClinicId && c.FacilityId == request.FacilityId && !c.IsDeleted, cancellationToken);
 
             if (clinic == null)
                 return ApiResponse<MedicalServiceDto>.FailureResponse("Clinic not found");
@@ -67,13 +62,14 @@ public class MedicalServiceService : IMedicalServiceService
                 Currency = "NGN",
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = request.Username
             };
 
             await _medicalServiceRepository.AddAsync(service, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Medical service created. ServiceId={ServiceId}, Code={Code}", service.Id, service.Code);
+            _logger.LogInformation("Medical service created. ServiceId={ServiceId}, Code={Code}, CreatedBy={CreatedBy}", 
+                service.Id, service.Code, request.Username);
 
             return ApiResponse<MedicalServiceDto>.SuccessResponse(MapToDto(service, clinic.Name), "Medical service created successfully");
         }
@@ -86,18 +82,19 @@ public class MedicalServiceService : IMedicalServiceService
 
     public async Task<ApiResponse<MedicalServiceDto>> GetMedicalServiceByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var service = await _medicalServiceRepository.Query()
                 .Include(s => s.Clinic)
                 .FirstOrDefaultAsync(s => s.Id == id && s.Clinic.FacilityId == facilityId && !s.IsDeleted, cancellationToken);
 
             if (service == null)
                 return ApiResponse<MedicalServiceDto>.FailureResponse("Medical service not found");
+
+            _logger.LogInformation("Medical service retrieved. ServiceId={ServiceId}", id);
 
             return ApiResponse<MedicalServiceDto>.SuccessResponse(MapToDto(service, service.Clinic.Name));
         }
@@ -114,14 +111,18 @@ public class MedicalServiceService : IMedicalServiceService
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
+            _logger.LogInformation("Loading medical services list. FacilityId={FacilityId}, ClinicId={ClinicId}, SearchTerm={SearchTerm}", 
+                request.FacilityId, request.ClinicId, request.SearchTerm);
 
             var query = _medicalServiceRepository.Query()
                 .Include(s => s.Clinic)
-                .Where(s => s.Clinic.FacilityId == facilityId && !s.IsDeleted);
+                .Where(s => s.Clinic.FacilityId == request.FacilityId && !s.IsDeleted);
 
             if (request.ClinicId.HasValue)
+            {
                 query = query.Where(s => s.ClinicId == request.ClinicId.Value);
+                _logger.LogInformation("Filter applied: ClinicId={ClinicId}", request.ClinicId);
+            }
 
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
@@ -129,10 +130,15 @@ public class MedicalServiceService : IMedicalServiceService
                 query = query.Where(s =>
                     s.Name.ToLower().Contains(searchTerm) ||
                     s.Code.ToLower().Contains(searchTerm));
+                
+                _logger.LogInformation("Search executed: SearchTerm={SearchTerm}", request.SearchTerm);
             }
 
             if (request.IsActive.HasValue)
+            {
                 query = query.Where(s => s.IsActive == request.IsActive.Value);
+                _logger.LogInformation("Filter applied: IsActive={IsActive}", request.IsActive);
+            }
 
             query = query.OrderBy(s => s.Clinic.Name).ThenBy(s => s.Name);
 
@@ -146,6 +152,10 @@ public class MedicalServiceService : IMedicalServiceService
             var dtos = services.Select(s => MapToDto(s, s.Clinic.Name));
 
             var result = PagedResult<MedicalServiceDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
+
+            _logger.LogInformation("Medical services list loaded. TotalCount={TotalCount}, PageNumber={PageNumber}", 
+                totalCount, request.PageNumber);
+
             return ApiResponse<PagedResult<MedicalServiceDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
@@ -166,11 +176,9 @@ public class MedicalServiceService : IMedicalServiceService
             if (!isValid)
                 return ApiResponse<MedicalServiceDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var service = await _medicalServiceRepository.Query()
                 .Include(s => s.Clinic)
-                .FirstOrDefaultAsync(s => s.Id == id && s.Clinic.FacilityId == facilityId && !s.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(s => s.Id == id && s.Clinic.FacilityId == request.FacilityId && !s.IsDeleted, cancellationToken);
 
             if (service == null)
                 return ApiResponse<MedicalServiceDto>.FailureResponse("Medical service not found");
@@ -180,12 +188,12 @@ public class MedicalServiceService : IMedicalServiceService
             service.UnitPrice = request.UnitPrice;
             service.IsActive = request.IsActive;
             service.UpdatedAt = DateTime.UtcNow;
-            service.UpdatedBy = _currentUserService.Username;
+            service.UpdatedBy = request.Username;
 
             _medicalServiceRepository.Update(service);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Medical service updated. ServiceId={ServiceId}", id);
+            _logger.LogInformation("Medical service updated. ServiceId={ServiceId}, UpdatedBy={UpdatedBy}", id, request.Username);
 
             return ApiResponse<MedicalServiceDto>.SuccessResponse(MapToDto(service, service.Clinic.Name), "Medical service updated successfully");
         }
@@ -198,12 +206,12 @@ public class MedicalServiceService : IMedicalServiceService
 
     public async Task<ApiResponse<bool>> DeleteMedicalServiceAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var service = await _medicalServiceRepository.Query()
                 .Include(s => s.Clinic)
                 .FirstOrDefaultAsync(s => s.Id == id && s.Clinic.FacilityId == facilityId && !s.IsDeleted, cancellationToken);
@@ -213,12 +221,12 @@ public class MedicalServiceService : IMedicalServiceService
 
             service.IsDeleted = true;
             service.UpdatedAt = DateTime.UtcNow;
-            service.UpdatedBy = _currentUserService.Username;
+            service.UpdatedBy = username;
 
             _medicalServiceRepository.Update(service);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Medical service deleted. ServiceId={ServiceId}", id);
+            _logger.LogInformation("Medical service deleted. ServiceId={ServiceId}, DeletedBy={DeletedBy}", id, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "Medical service deleted successfully");
         }

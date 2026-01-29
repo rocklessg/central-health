@@ -33,30 +33,4 @@ public class FacilitiesController : ControllerBase
         var result = await _facilityService.GetFacilityByIdAsync(id, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
-
-    [HttpGet]
-    [ProducesResponseType(typeof(ApiResponse<IEnumerable<FacilityDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetAllFacilities(CancellationToken cancellationToken)
-    {
-        var result = await _facilityService.GetAllFacilitiesAsync(cancellationToken);
-        return Ok(result);
-    }
-
-    [HttpGet("current")]
-    [ProducesResponseType(typeof(ApiResponse<FacilityDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetCurrentFacility(CancellationToken cancellationToken)
-    {
-        var result = await _facilityService.GetCurrentFacilityAsync(cancellationToken);
-        return result.Success ? Ok(result) : NotFound(result);
-    }
-
-    [HttpPut]
-    [ProducesResponseType(typeof(ApiResponse<FacilityDto>), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateFacility([FromBody] UpdateFacilityRequest request, CancellationToken cancellationToken)
-    {
-        var result = await _facilityService.UpdateFacilityAsync(request, cancellationToken);
-        return result.Success ? Ok(result) : BadRequest(result);
-    }
 }

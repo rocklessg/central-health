@@ -1,6 +1,6 @@
 # CentralHealth API
 
-A healthcare management backend API built with .NET 8, following clean architecture principles.
+A healthcare management backend API built with .NET 8, following clean architecture principles. This API is designed for **Front Desk staff** operations.
 
 ## Table of Contents
 
@@ -8,22 +8,19 @@ A healthcare management backend API built with .NET 8, following clean architect
 - [Tech Stack](#tech-stack)
 - [Setup Instructions](#setup-instructions)
 - [API Endpoints](#api-endpoints)
-- [Architecture](#architecture)
-- [Assumptions](#assumptions)
-- [Important Notes](#important-notes)
+- [Request Examples](#request-examples)
+- [User Stories](#user-stories)
+- [Logging](#logging)
 
 ## Overview
 
-CentralHealth API provides backend services for a healthcare facility management system, supporting:
+CentralHealth API provides backend services for front desk staff at healthcare facilities, supporting:
 
-- Patient records landing screen with filtering, searching, sorting, and pagination
-- Patient management with wallet functionality
-- Appointment scheduling and management
-- Clinic and medical services management
-- Invoice creation with itemized medical services and automatic discount calculations
-- Payment processing with multiple payment methods including wallet payments
-- Automatic status transitions (e.g., moving patients to "Awaiting Vitals" after payment)
-- Facility and user management
+- **Patient Records Landing Screen** - View and manage patient records with filtering, searching, sorting, and pagination
+- **Appointment Scheduling** - Create and manage patient appointments
+- **Invoice Creation** - Create detailed invoices with itemized medical services and automatic discount calculations
+- **Payment Processing** - Process and collect payments through a digital invoice system
+- **Status Workflow** - Move patients to "Awaiting Vitals" status after invoice payment
 
 ## Tech Stack
 
@@ -59,193 +56,238 @@ CentralHealth API provides backend services for a healthcare facility management
 }
 ```
 
-3. Create the initial EF Core migration:
-
-```bash
-cd CentralHealth.Infrastructure
-dotnet ef migrations add InitialCreate --startup-project ../CentralHealth.Api
-```
-
-4. Run the application:
+3. Run the application:
 
 ```bash
 cd CentralHealth.Api
 dotnet run
 ```
 
+The API will be available at `https://localhost:5001` or `http://localhost:5000`.
+
 Swagger UI is available at `/swagger` in development mode.
-
-### Database Seeding
-
-The application automatically seeds sample data on first run, including:
-- 1 Facility
-- 2 Clinics
-- 1 User (FrontDesk role)
-- 2 Patients with wallets
-- 3 Medical services
-- 2 Sample appointments
 
 ## API Endpoints
 
-### Records
+### Facility Setup
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/records` | Get patient records with filtering, searching, sorting, and pagination |
+| POST | `/api/facilities` | Create a new facility with admin user |
+| GET | `/api/facilities/{id}` | Get facility by ID |
 
-Query Parameters:
-- `startDate` - Filter start date (default: today)
-- `endDate` - Filter end date (default: today)
-- `clinicId` - Filter by clinic
-- `searchTerm` - Search by patient name, code, or phone
-- `sortDescending` - Sort direction (default: false/ascending)
-- `pageNumber` - Page number (default: 1)
-- `pageSize` - Page size (default: 20, max: 100)
-
-### Patients
+### Records (Story 1)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/patients` | Create a new patient |
-| GET | `/api/patients/{id}` | Get patient by ID |
-| GET | `/api/patients` | Get patients with search and pagination |
-| PUT | `/api/patients/{id}` | Update a patient |
-| DELETE | `/api/patients/{id}` | Delete a patient (soft delete) |
-| POST | `/api/patients/{id}/wallet/topup` | Top up patient wallet |
+| POST | `/api/records/search` | Get patient records with filtering, searching, sorting, and pagination |
 
-### Appointments
+### Appointments (Story 2)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/appointments` | Create a new appointment |
-| GET | `/api/appointments/{id}` | Get appointment by ID |
-| GET | `/api/appointments` | Get appointments with filters |
+| GET | `/api/appointments/{id}?facilityId={facilityId}` | Get appointment by ID |
+| POST | `/api/appointments/search` | Get appointments with filters |
 | PATCH | `/api/appointments/{id}/cancel` | Cancel an appointment |
 
-### Clinics
+### Invoices (Story 3)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/clinics` | Create a new clinic |
-| GET | `/api/clinics/{id}` | Get clinic by ID |
-| GET | `/api/clinics` | Get clinics with search and pagination |
-| PUT | `/api/clinics/{id}` | Update a clinic |
-| DELETE | `/api/clinics/{id}` | Delete a clinic (soft delete) |
-
-### Medical Services
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/medicalservices` | Create a new medical service |
-| GET | `/api/medicalservices/{id}` | Get medical service by ID |
-| GET | `/api/medicalservices` | Get medical services with filters |
-| PUT | `/api/medicalservices/{id}` | Update a medical service |
-| DELETE | `/api/medicalservices/{id}` | Delete a medical service (soft delete) |
-
-### Invoices
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/invoices` | Create a new invoice |
-| GET | `/api/invoices/{id}` | Get invoice by ID |
-| GET | `/api/invoices` | Get invoices with filters |
+| POST | `/api/invoices` | Create a new invoice with itemized services |
+| GET | `/api/invoices/{id}?facilityId={facilityId}` | Get invoice by ID |
+| POST | `/api/invoices/search` | Get invoices with filters |
 | PATCH | `/api/invoices/{id}/cancel` | Cancel an invoice |
 
-### Payments
+### Payments (Story 4 & 5)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/payments` | Process a payment |
-| GET | `/api/payments/{id}` | Get payment by ID |
-| GET | `/api/payments/invoice/{invoiceId}` | Get payments by invoice |
+| POST | `/api/payments` | Process a payment (moves patient to AwaitingVitals on full payment) |
+| GET | `/api/payments/{id}?facilityId={facilityId}` | Get payment by ID |
+| GET | `/api/payments/invoice/{invoiceId}?facilityId={facilityId}` | Get payments by invoice |
 
-### Facilities
+## Request Examples
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/facilities/current` | Get current facility details |
-| PUT | `/api/facilities` | Update facility information |
+### 1. Create Facility (Initial Setup)
 
-### Users
+```http
+POST /api/facilities
+Content-Type: application/json
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/users` | Create a new user |
-| GET | `/api/users/{id}` | Get user by ID |
-| GET | `/api/users` | Get users with filters |
-| PUT | `/api/users/{id}` | Update a user |
-| PATCH | `/api/users/{id}/deactivate` | Deactivate a user |
-
-## Architecture
-
-```
-CentralHealth/
-|-- CentralHealth.Api/              # Presentation layer
-|   |-- Controllers/                # API controllers
-|   |-- Extensions/                 # Service configuration extensions
-|   |-- Middleware/                 # Exception handling middleware
-|   +-- Services/                   # Current user service
-|-- CentralHealth.Application/      # Application layer
-|   |-- Common/                     # Shared response models
-|   |-- DTOs/                       # Data transfer objects
-|   |-- Interfaces/                 # Service and repository interfaces
-|   |-- Services/                   # Business logic implementation
-|   +-- Validators/                 # Request validators
-|-- CentralHealth.Domain/           # Domain layer
-|   |-- Entities/                   # Domain entities
-|   +-- Enums/                      # Domain enumerations
-+-- CentralHealth.Infrastructure/   # Infrastructure layer
-    |-- Data/                       # DbContext and configurations
-    +-- Repositories/               # Repository implementations
+{
+  "name": "Central Health Hospital",
+  "code": "CH-001",
+  "address": "123 Healthcare Avenue",
+  "phone": "+234-800-000-0001",
+  "email": "info@centralhealth.com",
+  "adminUsername": "admin",
+  "adminEmail": "admin@centralhealth.com",
+  "adminFirstName": "System",
+  "adminLastName": "Administrator",
+  "adminPassword": "Admin@123"
+}
 ```
 
-### Design Patterns Used
+### 2. Search Records
 
-- **Repository Pattern**: Abstracts data access logic
-- **Unit of Work**: Manages transactions across multiple repositories
-- **Clean Architecture**: Separation of concerns with dependency inversion
-- **Unified Response Pattern**: Consistent API response structure
-- **Validation Service Pattern**: Centralized validation in service layer
+```http
+POST /api/records/search
+Content-Type: application/json
 
-## Assumptions
+{
+  "facilityId": "your-facility-id",
+  "userId": "your-user-id",
+  "username": "frontdesk",
+  "startDate": "2024-01-15",
+  "endDate": "2024-01-15",
+  "clinicId": null,
+  "searchTerm": "John",
+  "sortDescending": false,
+  "pageNumber": 1,
+  "pageSize": 20
+}
+```
 
-1. **Authentication/Authorization**: The API expects facility scoping via HTTP headers (`X-Facility-Id`, `X-User-Id`, `X-Username`, `X-User-Role`). In production, these would be extracted from JWT tokens or similar authentication mechanisms.
+### 3. Create Appointment
 
-2. **Multi-tenancy**: The system supports multiple facilities with data isolation based on FacilityId.
+```http
+POST /api/appointments
+Content-Type: application/json
 
-3. **Currency**: Default currency is NGN (Nigerian Naira). The system supports currency per transaction.
+{
+  "facilityId": "your-facility-id",
+  "userId": "your-user-id",
+  "username": "frontdesk",
+  "patientId": "patient-id",
+  "clinicId": "clinic-id",
+  "appointmentDate": "2024-01-20",
+  "appointmentTime": "09:30:00",
+  "type": 1,
+  "reasonForVisit": "General checkup",
+  "notes": ""
+}
+```
 
-4. **Appointment Workflow**: 
-   - Scheduled -> CheckedIn -> AwaitingPayment (after invoice creation) -> AwaitingVitals (after payment) -> InProgress -> Completed
+### 4. Create Invoice
 
-5. **Invoice Status Flow**:
-   - Draft -> Pending -> PartiallyPaid/Paid -> (or Cancelled/Refunded)
+```http
+POST /api/invoices
+Content-Type: application/json
 
-6. **Wallet Payments**: Patients can have wallet balances that can be used for payments.
+{
+  "facilityId": "your-facility-id",
+  "userId": "your-user-id",
+  "username": "frontdesk",
+  "patientId": "patient-id",
+  "appointmentId": "appointment-id",
+  "discountPercentage": 10,
+  "notes": "Regular patient discount",
+  "items": [
+    {
+      "medicalServiceId": null,
+      "description": "Consultation",
+      "quantity": 1,
+      "unitPrice": 5000,
+      "discountAmount": 0
+    },
+    {
+      "medicalServiceId": "service-id",
+      "description": "",
+      "quantity": 1,
+      "unitPrice": 2500,
+      "discountAmount": 500
+    }
+  ]
+}
+```
 
-7. **Soft Deletes**: All entities support soft deletion via `IsDeleted` flag.
+### 5. Process Payment
 
-8. **Password Storage**: Passwords are hashed using SHA256. In production, use a proper password hashing library like BCrypt or Argon2.
+```http
+POST /api/payments
+Content-Type: application/json
 
-## Important Notes
+{
+  "facilityId": "your-facility-id",
+  "userId": "your-user-id",
+  "username": "frontdesk",
+  "invoiceId": "invoice-id",
+  "amount": 6750.00,
+  "method": 1,
+  "transactionId": "TXN-12345",
+  "notes": "Cash payment"
+}
+```
 
-1. **Logging**: All key events are logged including:
-   - Records list loading
-   - Filter and search operations
-   - CRUD operations for all entities
-   - Payment processing
-   - Status changes
-   - Errors
+Payment Methods:
+- `0` = Cash
+- `1` = Card
+- `2` = Transfer
+- `3` = Wallet
 
-2. **Error Handling**: Global exception handling middleware provides consistent error responses.
+### 6. Cancel Appointment/Invoice
 
-3. **Validation**: All requests are validated using FluentValidation in the service layer.
+```http
+PATCH /api/appointments/{id}/cancel
+Content-Type: application/json
 
-4. **Pagination**: Default page size is 20, maximum is 100.
+{
+  "facilityId": "your-facility-id",
+  "userId": "your-user-id",
+  "username": "frontdesk"
+}
+```
 
-5. **Controller Pattern**: All controller endpoints contain at most 2 lines of code for clean separation of concerns.
+## User Stories
 
-6. **Database Migrations**: Run migrations before first use or when model changes occur.
+### Story 1: Records Landing Screen
+View patient records with:
+- Patient name/code, appointment time, status, clinic, wallet balance
+- Time window filter (default: today), clinic filter
+- Text search (patient name, code, phone)
+- Sorting by time (default: ascending)
+- Pagination (default page size: 20)
+
+### Story 2: Create/Schedule Appointments
+Create appointments with:
+- Patient, clinic, appointment type, date, and time
+- Conflict detection for duplicate appointments
+
+### Story 3: Create Invoices
+Create invoices with:
+- Itemized medical services
+- Automatic discount calculations
+- Status transition: CheckedIn ? AwaitingPayment
+
+### Story 4: Process Payments
+Process payments with:
+- Multiple payment methods (Cash, Card, Transfer, Wallet)
+- Real-time payment tracking
+- Wallet balance deduction for wallet payments
+
+### Story 5: Status Workflow
+When invoice is fully paid:
+- Appointment status changes from AwaitingPayment ? AwaitingVitals
+
+## Logging
+
+All key events are logged as per acceptance criteria:
+
+| Event | Log Level | Example |
+|-------|-----------|---------|
+| List loaded | Information | "Records list loaded successfully. TotalCount=50, PageNumber=1" |
+| Filter applied | Information | "Filter applied: ClinicId=xxx" |
+| Search executed | Information | "Search executed: SearchTerm=John" |
+| Create operations | Information | "Appointment created successfully. AppointmentId=xxx" |
+| Status changes | Information | "Patient moved to AwaitingVitals after payment" |
+| Validation errors | Warning | "Patient not found. PatientId=xxx" |
+| Errors | Error | "Error creating invoice" |
+
+### Log Output
+- **Console**: Real-time log output during development
+- **File**: Logs saved to `logs/centralhealth-{date}.log`
 
 ## License
 

@@ -1,5 +1,4 @@
 using CentralHealth.Application.Common;
-using CentralHealth.Application.DTOs.Invoices;
 using CentralHealth.Application.DTOs.Payments;
 using CentralHealth.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -23,24 +22,24 @@ public class PaymentsController : ControllerBase
     public async Task<IActionResult> ProcessPayment([FromBody] ProcessPaymentRequest request, CancellationToken cancellationToken)
     {
         var result = await _paymentService.ProcessPaymentAsync(request, cancellationToken);
-        return result.Success ? CreatedAtAction(nameof(GetPayment), new { id = result.Data!.Id }, result) : BadRequest(result);
+        return result.Success ? CreatedAtAction(nameof(GetPayment), new { id = result.Data!.Id, facilityId = request.FacilityId }, result) : BadRequest(result);
     }
 
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<PaymentDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPayment(Guid id, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPayment(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
     {
-        var result = await _paymentService.GetPaymentByIdAsync(id, cancellationToken);
+        var result = await _paymentService.GetPaymentByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
 
     [HttpGet("invoice/{invoiceId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<PaymentDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPaymentsByInvoice(Guid invoiceId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPaymentsByInvoice(Guid invoiceId, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
     {
-        var result = await _paymentService.GetPaymentsByInvoiceIdAsync(invoiceId, cancellationToken);
+        var result = await _paymentService.GetPaymentsByInvoiceIdAsync(invoiceId, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
 }

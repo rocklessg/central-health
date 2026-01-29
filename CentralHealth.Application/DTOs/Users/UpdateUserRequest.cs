@@ -1,8 +1,9 @@
+using CentralHealth.Application.Common;
 using CentralHealth.Domain.Enums;
 
 namespace CentralHealth.Application.DTOs.Users;
 
-public class UpdateUserRequest
+public class UpdateUserRequest : AuthenticatedRequest
 {
     public string Email { get; set; } = string.Empty;
     public string FirstName { get; set; } = string.Empty;

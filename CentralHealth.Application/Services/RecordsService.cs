@@ -10,16 +10,13 @@ namespace CentralHealth.Application.Services;
 public class RecordsService : IRecordsService
 {
     private readonly IRepository<Appointment> _appointmentRepository;
-    private readonly ICurrentUserService _currentUserService;
     private readonly ILogger<RecordsService> _logger;
 
     public RecordsService(
         IRepository<Appointment> appointmentRepository,
-        ICurrentUserService currentUserService,
         ILogger<RecordsService> logger)
     {
         _appointmentRepository = appointmentRepository;
-        _currentUserService = currentUserService;
         _logger = logger;
     }
 
@@ -30,16 +27,14 @@ public class RecordsService : IRecordsService
         try
         {
             _logger.LogInformation(
-                "Loading records list. Filters: StartDate={StartDate}, EndDate={EndDate}, ClinicId={ClinicId}, SearchTerm={SearchTerm}",
-                request.StartDate, request.EndDate, request.ClinicId, request.SearchTerm);
-
-            var facilityId = _currentUserService.FacilityId;
+                "Loading records list. FacilityId={FacilityId}, Filters: StartDate={StartDate}, EndDate={EndDate}, ClinicId={ClinicId}, SearchTerm={SearchTerm}",
+                request.FacilityId, request.StartDate, request.EndDate, request.ClinicId, request.SearchTerm);
 
             var query = _appointmentRepository.Query()
                 .Include(a => a.Patient)
                     .ThenInclude(p => p.Wallet)
                 .Include(a => a.Clinic)
-                .Where(a => a.FacilityId == facilityId && !a.IsDeleted);
+                .Where(a => a.FacilityId == request.FacilityId && !a.IsDeleted);
 
             var startDate = request.StartDate ?? DateTime.Today;
             var endDate = request.EndDate ?? DateTime.Today.AddDays(1).AddTicks(-1);

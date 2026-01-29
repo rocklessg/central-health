@@ -1,6 +1,8 @@
+using CentralHealth.Application.Common;
+
 namespace CentralHealth.Application.DTOs.MedicalServices;
 
-public class CreateMedicalServiceRequest
+public class CreateMedicalServiceRequest : AuthenticatedRequest
 {
     public string Name { get; set; } = string.Empty;
     public string Code { get; set; } = string.Empty;

@@ -1,5 +1,6 @@
 using CentralHealth.Application.Common;
 using CentralHealth.Application.DTOs.Invoices;
+using CentralHealth.Application.DTOs.Payments;
 using CentralHealth.Application.Interfaces;
 using CentralHealth.Domain.Entities;
 using CentralHealth.Domain.Enums;
@@ -15,7 +16,6 @@ public class InvoiceService : IInvoiceService
     private readonly IRepository<Appointment> _appointmentRepository;
     private readonly IRepository<MedicalService> _medicalServiceRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<InvoiceService> _logger;
 
@@ -25,7 +25,6 @@ public class InvoiceService : IInvoiceService
         IRepository<Appointment> appointmentRepository,
         IRepository<MedicalService> medicalServiceRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<InvoiceService> logger)
     {
@@ -34,7 +33,6 @@ public class InvoiceService : IInvoiceService
         _appointmentRepository = appointmentRepository;
         _medicalServiceRepository = medicalServiceRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -45,16 +43,18 @@ public class InvoiceService : IInvoiceService
     {
         try
         {
+            _logger.LogInformation(
+                "Creating invoice. PatientId={PatientId}, AppointmentId={AppointmentId}, ItemsCount={ItemsCount}, FacilityId={FacilityId}",
+                request.PatientId, request.AppointmentId, request.Items.Count, request.FacilityId);
+
             var (isValid, errors) = await _validationService.ValidateAsync(request, cancellationToken);
             if (!isValid)
                 return ApiResponse<InvoiceDto>.FailureResponse(errors);
 
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var patient = await _patientRepository.Query()
-                .FirstOrDefaultAsync(p => p.Id == request.PatientId && p.FacilityId == facilityId && !p.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(p => p.Id == request.PatientId && p.FacilityId == request.FacilityId && !p.IsDeleted, cancellationToken);
 
             if (patient == null)
             {
@@ -66,7 +66,7 @@ public class InvoiceService : IInvoiceService
             if (request.AppointmentId.HasValue)
             {
                 appointment = await _appointmentRepository.Query()
-                    .FirstOrDefaultAsync(a => a.Id == request.AppointmentId.Value && a.FacilityId == facilityId && !a.IsDeleted, cancellationToken);
+                    .FirstOrDefaultAsync(a => a.Id == request.AppointmentId.Value && a.FacilityId == request.FacilityId && !a.IsDeleted, cancellationToken);
 
                 if (appointment == null)
                 {
@@ -83,12 +83,12 @@ public class InvoiceService : IInvoiceService
                 DueDate = DateTime.UtcNow.AddDays(30),
                 PatientId = request.PatientId,
                 AppointmentId = request.AppointmentId,
-                FacilityId = facilityId,
+                FacilityId = request.FacilityId,
                 DiscountPercentage = request.DiscountPercentage,
                 Notes = request.Notes,
                 Status = InvoiceStatus.Pending,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username,
+                CreatedBy = request.Username,
                 Items = new List<InvoiceItem>()
             };
 
@@ -115,7 +115,7 @@ public class InvoiceService : IInvoiceService
                     DiscountAmount = itemRequest.DiscountAmount,
                     TotalPrice = itemTotal,
                     CreatedAt = DateTime.UtcNow,
-                    CreatedBy = _currentUserService.Username
+                    CreatedBy = request.Username
                 };
 
                 invoice.Items.Add(invoiceItem);
@@ -131,18 +131,23 @@ public class InvoiceService : IInvoiceService
 
             if (appointment != null && appointment.Status == AppointmentStatus.CheckedIn)
             {
+                var previousStatus = appointment.Status;
                 appointment.Status = AppointmentStatus.AwaitingPayment;
                 appointment.UpdatedAt = DateTime.UtcNow;
-                appointment.UpdatedBy = _currentUserService.Username;
+                appointment.UpdatedBy = request.Username;
                 _appointmentRepository.Update(appointment);
+                
+                _logger.LogInformation(
+                    "Appointment status changed after invoice creation. AppointmentId={AppointmentId}, PreviousStatus={PreviousStatus}, NewStatus={NewStatus}",
+                    appointment.Id, previousStatus, appointment.Status);
             }
 
             await _unitOfWork.SaveChangesAsync(cancellationToken);
             await _unitOfWork.CommitTransactionAsync(cancellationToken);
 
             _logger.LogInformation(
-                "Invoice created successfully. InvoiceId={InvoiceId}, InvoiceNumber={InvoiceNumber}, PatientId={PatientId}, TotalAmount={TotalAmount}",
-                invoice.Id, invoice.InvoiceNumber, invoice.PatientId, invoice.TotalAmount);
+                "Invoice created successfully. InvoiceId={InvoiceId}, InvoiceNumber={InvoiceNumber}, PatientId={PatientId}, TotalAmount={TotalAmount}, CreatedBy={CreatedBy}",
+                invoice.Id, invoice.InvoiceNumber, invoice.PatientId, invoice.TotalAmount, request.Username);
 
             var dto = MapToDto(invoice, patient);
             return ApiResponse<InvoiceDto>.SuccessResponse(dto, "Invoice created successfully");
@@ -157,12 +162,11 @@ public class InvoiceService : IInvoiceService
 
     public async Task<ApiResponse<InvoiceDto>> GetInvoiceByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var invoice = await _invoiceRepository.Query()
                 .Include(i => i.Patient)
                 .Include(i => i.Items)
@@ -172,8 +176,11 @@ public class InvoiceService : IInvoiceService
 
             if (invoice == null)
             {
+                _logger.LogWarning("Invoice not found. InvoiceId={InvoiceId}", id);
                 return ApiResponse<InvoiceDto>.FailureResponse("Invoice not found");
             }
+
+            _logger.LogInformation("Invoice retrieved. InvoiceId={InvoiceId}, InvoiceNumber={InvoiceNumber}", id, invoice.InvoiceNumber);
 
             var dto = MapToDto(invoice, invoice.Patient);
             return ApiResponse<InvoiceDto>.SuccessResponse(dto);
@@ -191,22 +198,33 @@ public class InvoiceService : IInvoiceService
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
+            _logger.LogInformation(
+                "Loading invoices list. FacilityId={FacilityId}, Filters: PatientId={PatientId}, StartDate={StartDate}, EndDate={EndDate}",
+                request.FacilityId, request.PatientId, request.StartDate, request.EndDate);
 
             var query = _invoiceRepository.Query()
                 .Include(i => i.Patient)
                 .Include(i => i.Items)
                 .Include(i => i.Payments)
-                .Where(i => i.FacilityId == facilityId && !i.IsDeleted);
+                .Where(i => i.FacilityId == request.FacilityId && !i.IsDeleted);
 
             if (request.PatientId.HasValue)
+            {
                 query = query.Where(i => i.PatientId == request.PatientId.Value);
+                _logger.LogInformation("Filter applied: PatientId={PatientId}", request.PatientId);
+            }
 
             if (request.StartDate.HasValue)
+            {
                 query = query.Where(i => i.InvoiceDate >= request.StartDate.Value.Date);
+                _logger.LogInformation("Filter applied: StartDate={StartDate}", request.StartDate);
+            }
 
             if (request.EndDate.HasValue)
+            {
                 query = query.Where(i => i.InvoiceDate <= request.EndDate.Value.Date);
+                _logger.LogInformation("Filter applied: EndDate={EndDate}", request.EndDate);
+            }
 
             query = query.OrderByDescending(i => i.InvoiceDate);
 
@@ -220,6 +238,11 @@ public class InvoiceService : IInvoiceService
             var dtos = invoices.Select(i => MapToDto(i, i.Patient));
 
             var result = PagedResult<InvoiceDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
+
+            _logger.LogInformation(
+                "Invoices list loaded. TotalCount={TotalCount}, PageNumber={PageNumber}, PageSize={PageSize}",
+                totalCount, request.PageNumber, request.PageSize);
+
             return ApiResponse<PagedResult<InvoiceDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
@@ -232,38 +255,41 @@ public class InvoiceService : IInvoiceService
 
     public async Task<ApiResponse<bool>> CancelInvoiceAsync(
         Guid id,
+        Guid facilityId,
+        string username,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var invoice = await _invoiceRepository.Query()
                 .FirstOrDefaultAsync(i => i.Id == id && i.FacilityId == facilityId && !i.IsDeleted, cancellationToken);
 
             if (invoice == null)
             {
+                _logger.LogWarning("Invoice not found for cancellation. InvoiceId={InvoiceId}", id);
                 return ApiResponse<bool>.FailureResponse("Invoice not found");
             }
 
             if (invoice.Status == InvoiceStatus.Paid)
             {
+                _logger.LogWarning("Cannot cancel paid invoice. InvoiceId={InvoiceId}", id);
                 return ApiResponse<bool>.FailureResponse("Cannot cancel a paid invoice");
             }
 
             if (invoice.Status == InvoiceStatus.Cancelled)
-            {
                 return ApiResponse<bool>.FailureResponse("Invoice is already cancelled");
-            }
 
+            var previousStatus = invoice.Status;
             invoice.Status = InvoiceStatus.Cancelled;
             invoice.UpdatedAt = DateTime.UtcNow;
-            invoice.UpdatedBy = _currentUserService.Username;
+            invoice.UpdatedBy = username;
 
             _invoiceRepository.Update(invoice);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("Invoice cancelled. InvoiceId={InvoiceId}", id);
+            _logger.LogInformation(
+                "Invoice cancelled. InvoiceId={InvoiceId}, InvoiceNumber={InvoiceNumber}, CancelledBy={CancelledBy}",
+                id, invoice.InvoiceNumber, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "Invoice cancelled successfully");
         }

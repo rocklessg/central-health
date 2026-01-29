@@ -12,7 +12,6 @@ public class UserService : IUserService
     private readonly IRepository<User> _userRepository;
     private readonly IRepository<Facility> _facilityRepository;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly ICurrentUserService _currentUserService;
     private readonly IValidationService _validationService;
     private readonly ILogger<UserService> _logger;
 
@@ -20,14 +19,12 @@ public class UserService : IUserService
         IRepository<User> userRepository,
         IRepository<Facility> facilityRepository,
         IUnitOfWork unitOfWork,
-        ICurrentUserService currentUserService,
         IValidationService validationService,
         ILogger<UserService> logger)
     {
         _userRepository = userRepository;
         _facilityRepository = facilityRepository;
         _unitOfWork = unitOfWork;
-        _currentUserService = currentUserService;
         _validationService = validationService;
         _logger = logger;
     }
@@ -42,10 +39,8 @@ public class UserService : IUserService
             if (!isValid)
                 return ApiResponse<UserDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var usernameExists = await _userRepository.Query()
-                .AnyAsync(u => u.Username == request.Username && !u.IsDeleted, cancellationToken);
+                .AnyAsync(u => u.Username == request.NewUsername && !u.IsDeleted, cancellationToken);
 
             if (usernameExists)
                 return ApiResponse<UserDto>.FailureResponse("Username already exists");
@@ -56,13 +51,13 @@ public class UserService : IUserService
             if (emailExists)
                 return ApiResponse<UserDto>.FailureResponse("Email already exists");
 
-            var facility = await _facilityRepository.GetByIdAsync(facilityId, cancellationToken);
+            var facility = await _facilityRepository.GetByIdAsync(request.FacilityId, cancellationToken);
 
             var user = new User
             {
                 Id = Guid.NewGuid(),
-                FacilityId = facilityId,
-                Username = request.Username,
+                FacilityId = request.FacilityId,
+                Username = request.NewUsername,
                 Email = request.Email,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
@@ -70,13 +65,14 @@ public class UserService : IUserService
                 Role = request.Role,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
-                CreatedBy = _currentUserService.Username
+                CreatedBy = request.Username
             };
 
             await _userRepository.AddAsync(user, cancellationToken);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("User created. UserId={UserId}, Username={Username}", user.Id, user.Username);
+            _logger.LogInformation("User created. UserId={UserId}, Username={Username}, CreatedBy={CreatedBy}", 
+                user.Id, user.Username, request.Username);
 
             return ApiResponse<UserDto>.SuccessResponse(MapToDto(user, facility?.Name ?? ""), "User created successfully");
         }
@@ -89,18 +85,19 @@ public class UserService : IUserService
 
     public async Task<ApiResponse<UserDto>> GetUserByIdAsync(
         Guid id,
+        Guid facilityId,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var user = await _userRepository.Query()
                 .Include(u => u.Facility)
                 .FirstOrDefaultAsync(u => u.Id == id && u.FacilityId == facilityId && !u.IsDeleted, cancellationToken);
 
             if (user == null)
                 return ApiResponse<UserDto>.FailureResponse("User not found");
+
+            _logger.LogInformation("User retrieved. UserId={UserId}", id);
 
             return ApiResponse<UserDto>.SuccessResponse(MapToDto(user, user.Facility.Name));
         }
@@ -117,11 +114,12 @@ public class UserService : IUserService
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
+            _logger.LogInformation("Loading users list. FacilityId={FacilityId}, SearchTerm={SearchTerm}", 
+                request.FacilityId, request.SearchTerm);
 
             var query = _userRepository.Query()
                 .Include(u => u.Facility)
-                .Where(u => u.FacilityId == facilityId && !u.IsDeleted);
+                .Where(u => u.FacilityId == request.FacilityId && !u.IsDeleted);
 
             if (!string.IsNullOrWhiteSpace(request.SearchTerm))
             {
@@ -131,13 +129,21 @@ public class UserService : IUserService
                     u.FirstName.ToLower().Contains(searchTerm) ||
                     u.LastName.ToLower().Contains(searchTerm) ||
                     u.Email.ToLower().Contains(searchTerm));
+                
+                _logger.LogInformation("Search executed: SearchTerm={SearchTerm}", request.SearchTerm);
             }
 
             if (request.Role.HasValue)
+            {
                 query = query.Where(u => u.Role == request.Role.Value);
+                _logger.LogInformation("Filter applied: Role={Role}", request.Role);
+            }
 
             if (request.IsActive.HasValue)
+            {
                 query = query.Where(u => u.IsActive == request.IsActive.Value);
+                _logger.LogInformation("Filter applied: IsActive={IsActive}", request.IsActive);
+            }
 
             query = query.OrderBy(u => u.LastName).ThenBy(u => u.FirstName);
 
@@ -151,6 +157,10 @@ public class UserService : IUserService
             var dtos = users.Select(u => MapToDto(u, u.Facility.Name));
 
             var result = PagedResult<UserDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
+
+            _logger.LogInformation("Users list loaded. TotalCount={TotalCount}, PageNumber={PageNumber}", 
+                totalCount, request.PageNumber);
+
             return ApiResponse<PagedResult<UserDto>>.SuccessResponse(result);
         }
         catch (Exception ex)
@@ -171,11 +181,9 @@ public class UserService : IUserService
             if (!isValid)
                 return ApiResponse<UserDto>.FailureResponse(errors);
 
-            var facilityId = _currentUserService.FacilityId;
-
             var user = await _userRepository.Query()
                 .Include(u => u.Facility)
-                .FirstOrDefaultAsync(u => u.Id == id && u.FacilityId == facilityId && !u.IsDeleted, cancellationToken);
+                .FirstOrDefaultAsync(u => u.Id == id && u.FacilityId == request.FacilityId && !u.IsDeleted, cancellationToken);
 
             if (user == null)
                 return ApiResponse<UserDto>.FailureResponse("User not found");
@@ -192,12 +200,12 @@ public class UserService : IUserService
             user.Role = request.Role;
             user.IsActive = request.IsActive;
             user.UpdatedAt = DateTime.UtcNow;
-            user.UpdatedBy = _currentUserService.Username;
+            user.UpdatedBy = request.Username;
 
             _userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("User updated. UserId={UserId}", id);
+            _logger.LogInformation("User updated. UserId={UserId}, UpdatedBy={UpdatedBy}", id, request.Username);
 
             return ApiResponse<UserDto>.SuccessResponse(MapToDto(user, user.Facility.Name), "User updated successfully");
         }
@@ -210,29 +218,30 @@ public class UserService : IUserService
 
     public async Task<ApiResponse<bool>> DeactivateUserAsync(
         Guid id,
+        Guid facilityId,
+        Guid currentUserId,
+        string username,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            var facilityId = _currentUserService.FacilityId;
-
             var user = await _userRepository.Query()
                 .FirstOrDefaultAsync(u => u.Id == id && u.FacilityId == facilityId && !u.IsDeleted, cancellationToken);
 
             if (user == null)
                 return ApiResponse<bool>.FailureResponse("User not found");
 
-            if (user.Id == _currentUserService.UserId)
+            if (user.Id == currentUserId)
                 return ApiResponse<bool>.FailureResponse("Cannot deactivate your own account");
 
             user.IsActive = false;
             user.UpdatedAt = DateTime.UtcNow;
-            user.UpdatedBy = _currentUserService.Username;
+            user.UpdatedBy = username;
 
             _userRepository.Update(user);
             await _unitOfWork.SaveChangesAsync(cancellationToken);
 
-            _logger.LogInformation("User deactivated. UserId={UserId}", id);
+            _logger.LogInformation("User deactivated. UserId={UserId}, DeactivatedBy={DeactivatedBy}", id, username);
 
             return ApiResponse<bool>.SuccessResponse(true, "User deactivated successfully");
         }
