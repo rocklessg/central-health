@@ -12,8 +12,24 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await context.Database.MigrateAsync();
-    await DbSeeder.SeedAsync(context);
+    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    
+    try
+    {
+        await context.Database.MigrateAsync();
+        logger.LogInformation("Database migration completed successfully");
+        
+        // Seed only in development environment
+        if (app.Environment.IsDevelopment())
+        {
+            await DbSeeder.SeedAsync(context);
+            logger.LogInformation("Database seeding completed");
+        }
+    }
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "An error occurred during database migration");
+    }
 }
 
 app.ConfigureMiddleware();
