@@ -1,10 +1,12 @@
 namespace CentralHealth.Application.Common;
 
-public abstract class PagedRequest : AuthenticatedRequest
+public abstract class PagedRequest
 {
     private int _pageNumber = 1;
     private int _pageSize = 20;
 
+    public Guid FacilityId { get; set; }
+    
     public int PageNumber
     {
         get => _pageNumber;

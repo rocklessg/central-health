@@ -138,7 +138,6 @@ public class PaymentService : IPaymentService
                 PaymentDate = DateTime.UtcNow,
                 TransactionId = request.TransactionId,
                 Notes = request.Notes,
-                ProcessedByUserId = request.UserId,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = request.Username
             };

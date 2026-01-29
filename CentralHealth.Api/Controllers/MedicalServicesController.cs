@@ -34,9 +34,9 @@ public class MedicalServicesController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpPost("search")]
+    [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<MedicalServiceDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetMedicalServices([FromBody] GetMedicalServicesRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetMedicalServices([FromQuery] GetMedicalServicesRequest request, CancellationToken cancellationToken)
     {
         var result = await _medicalServiceService.GetMedicalServicesAsync(request, cancellationToken);
         return Ok(result);

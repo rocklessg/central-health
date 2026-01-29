@@ -26,7 +26,6 @@ public interface IUserService
     Task<ApiResponse<bool>> DeactivateUserAsync(
         Guid id,
         Guid facilityId,
-        Guid currentUserId,
         string username,
         CancellationToken cancellationToken = default);
 }

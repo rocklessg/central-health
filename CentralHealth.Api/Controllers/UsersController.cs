@@ -34,9 +34,9 @@ public class UsersController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpPost("search")]
+    [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<UserDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetUsers([FromBody] GetUsersRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetUsers([FromQuery] GetUsersRequest request, CancellationToken cancellationToken)
     {
         var result = await _userService.GetUsersAsync(request, cancellationToken);
         return Ok(result);
@@ -56,7 +56,7 @@ public class UsersController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeactivateUser(Guid id, [FromBody] CancelRequest request, CancellationToken cancellationToken)
     {
-        var result = await _userService.DeactivateUserAsync(id, request.FacilityId, request.UserId, request.Username, cancellationToken);
+        var result = await _userService.DeactivateUserAsync(id, request.FacilityId, request.Username, cancellationToken);
         return result.Success ? Ok(result) : BadRequest(result);
     }
 }

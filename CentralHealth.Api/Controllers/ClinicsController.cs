@@ -34,9 +34,9 @@ public class ClinicsController : ControllerBase
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpPost("search")]
+    [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<ClinicDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetClinics([FromBody] GetClinicsRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetClinics([FromQuery] GetClinicsRequest request, CancellationToken cancellationToken)
     {
         var result = await _clinicService.GetClinicsAsync(request, cancellationToken);
         return Ok(result);

@@ -61,7 +61,7 @@ public class UserService : IUserService
                 Email = request.Email,
                 FirstName = request.FirstName,
                 LastName = request.LastName,
-                PasswordHash = HashPassword(request.Password),
+                PasswordHash = PasswordHasher.HashPassword(request.Password),
                 Role = request.Role,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
@@ -219,7 +219,6 @@ public class UserService : IUserService
     public async Task<ApiResponse<bool>> DeactivateUserAsync(
         Guid id,
         Guid facilityId,
-        Guid currentUserId,
         string username,
         CancellationToken cancellationToken = default)
     {
@@ -230,9 +229,6 @@ public class UserService : IUserService
 
             if (user == null)
                 return ApiResponse<bool>.FailureResponse("User not found");
-
-            if (user.Id == currentUserId)
-                return ApiResponse<bool>.FailureResponse("Cannot deactivate your own account");
 
             user.IsActive = false;
             user.UpdatedAt = DateTime.UtcNow;
@@ -250,13 +246,6 @@ public class UserService : IUserService
             _logger.LogError(ex, "Error deactivating user. UserId={UserId}", id);
             return ApiResponse<bool>.FailureResponse("An error occurred while deactivating the user");
         }
-    }
-
-    private static string HashPassword(string password)
-    {
-        return Convert.ToBase64String(
-            System.Security.Cryptography.SHA256.HashData(
-                System.Text.Encoding.UTF8.GetBytes(password)));
     }
 
     private static UserDto MapToDto(User user, string facilityName)
