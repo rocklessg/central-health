@@ -14,11 +14,7 @@ public interface IInvoiceService
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<InvoiceDto>>> GetInvoicesAsync(
-        Guid? patientId,
-        DateTime? startDate,
-        DateTime? endDate,
-        int pageNumber = 1,
-        int pageSize = 20,
+        GetInvoicesRequest request,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<bool>> CancelInvoiceAsync(

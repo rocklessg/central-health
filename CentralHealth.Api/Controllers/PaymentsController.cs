@@ -2,7 +2,6 @@ using CentralHealth.Application.Common;
 using CentralHealth.Application.DTOs.Invoices;
 using CentralHealth.Application.DTOs.Payments;
 using CentralHealth.Application.Interfaces;
-using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace CentralHealth.Api.Controllers;
@@ -12,17 +11,10 @@ namespace CentralHealth.Api.Controllers;
 public class PaymentsController : ControllerBase
 {
     private readonly IPaymentService _paymentService;
-    private readonly IValidator<ProcessPaymentRequest> _validator;
-    private readonly ILogger<PaymentsController> _logger;
 
-    public PaymentsController(
-        IPaymentService paymentService,
-        IValidator<ProcessPaymentRequest> validator,
-        ILogger<PaymentsController> logger)
+    public PaymentsController(IPaymentService paymentService)
     {
         _paymentService = paymentService;
-        _validator = validator;
-        _logger = logger;
     }
 
     [HttpPost]
@@ -30,19 +22,8 @@ public class PaymentsController : ControllerBase
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> ProcessPayment([FromBody] ProcessPaymentRequest request, CancellationToken cancellationToken)
     {
-        var validationResult = await _validator.ValidateAsync(request, cancellationToken);
-        if (!validationResult.IsValid)
-        {
-            var errors = validationResult.Errors.Select(e => e.ErrorMessage).ToList();
-            return BadRequest(ApiResponse<PaymentDto>.FailureResponse(errors));
-        }
-
         var result = await _paymentService.ProcessPaymentAsync(request, cancellationToken);
-
-        if (!result.Success)
-            return BadRequest(result);
-
-        return CreatedAtAction(nameof(GetPayment), new { id = result.Data!.Id }, result);
+        return result.Success ? CreatedAtAction(nameof(GetPayment), new { id = result.Data!.Id }, result) : BadRequest(result);
     }
 
     [HttpGet("{id:guid}")]

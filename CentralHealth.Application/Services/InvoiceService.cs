@@ -16,6 +16,7 @@ public class InvoiceService : IInvoiceService
     private readonly IRepository<MedicalService> _medicalServiceRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IValidationService _validationService;
     private readonly ILogger<InvoiceService> _logger;
 
     public InvoiceService(
@@ -25,6 +26,7 @@ public class InvoiceService : IInvoiceService
         IRepository<MedicalService> medicalServiceRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
+        IValidationService validationService,
         ILogger<InvoiceService> logger)
     {
         _invoiceRepository = invoiceRepository;
@@ -33,6 +35,7 @@ public class InvoiceService : IInvoiceService
         _medicalServiceRepository = medicalServiceRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _validationService = validationService;
         _logger = logger;
     }
 
@@ -42,6 +45,10 @@ public class InvoiceService : IInvoiceService
     {
         try
         {
+            var (isValid, errors) = await _validationService.ValidateAsync(request, cancellationToken);
+            if (!isValid)
+                return ApiResponse<InvoiceDto>.FailureResponse(errors);
+
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
             var facilityId = _currentUserService.FacilityId;
@@ -179,11 +186,7 @@ public class InvoiceService : IInvoiceService
     }
 
     public async Task<ApiResponse<PagedResult<InvoiceDto>>> GetInvoicesAsync(
-        Guid? patientId,
-        DateTime? startDate,
-        DateTime? endDate,
-        int pageNumber = 1,
-        int pageSize = 20,
+        GetInvoicesRequest request,
         CancellationToken cancellationToken = default)
     {
         try
@@ -196,27 +199,27 @@ public class InvoiceService : IInvoiceService
                 .Include(i => i.Payments)
                 .Where(i => i.FacilityId == facilityId && !i.IsDeleted);
 
-            if (patientId.HasValue)
-                query = query.Where(i => i.PatientId == patientId.Value);
+            if (request.PatientId.HasValue)
+                query = query.Where(i => i.PatientId == request.PatientId.Value);
 
-            if (startDate.HasValue)
-                query = query.Where(i => i.InvoiceDate >= startDate.Value.Date);
+            if (request.StartDate.HasValue)
+                query = query.Where(i => i.InvoiceDate >= request.StartDate.Value.Date);
 
-            if (endDate.HasValue)
-                query = query.Where(i => i.InvoiceDate <= endDate.Value.Date);
+            if (request.EndDate.HasValue)
+                query = query.Where(i => i.InvoiceDate <= request.EndDate.Value.Date);
 
             query = query.OrderByDescending(i => i.InvoiceDate);
 
             var totalCount = await query.CountAsync(cancellationToken);
 
             var invoices = await query
-                .Skip((pageNumber - 1) * pageSize)
-                .Take(pageSize)
+                .Skip((request.PageNumber - 1) * request.PageSize)
+                .Take(request.PageSize)
                 .ToListAsync(cancellationToken);
 
             var dtos = invoices.Select(i => MapToDto(i, i.Patient));
 
-            var result = PagedResult<InvoiceDto>.Create(dtos, pageNumber, pageSize, totalCount);
+            var result = PagedResult<InvoiceDto>.Create(dtos, request.PageNumber, request.PageSize, totalCount);
             return ApiResponse<PagedResult<InvoiceDto>>.SuccessResponse(result);
         }
         catch (Exception ex)

@@ -14,11 +14,7 @@ public interface IAppointmentService
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<PagedResult<AppointmentDto>>> GetAppointmentsAsync(
-        DateTime? startDate,
-        DateTime? endDate,
-        Guid? clinicId,
-        int pageNumber = 1,
-        int pageSize = 20,
+        GetAppointmentsRequest request,
         CancellationToken cancellationToken = default);
 
     Task<ApiResponse<bool>> CancelAppointmentAsync(

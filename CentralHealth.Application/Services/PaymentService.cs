@@ -18,6 +18,7 @@ public class PaymentService : IPaymentService
     private readonly IRepository<WalletTransaction> _walletTransactionRepository;
     private readonly IUnitOfWork _unitOfWork;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IValidationService _validationService;
     private readonly ILogger<PaymentService> _logger;
 
     public PaymentService(
@@ -28,6 +29,7 @@ public class PaymentService : IPaymentService
         IRepository<WalletTransaction> walletTransactionRepository,
         IUnitOfWork unitOfWork,
         ICurrentUserService currentUserService,
+        IValidationService validationService,
         ILogger<PaymentService> logger)
     {
         _paymentRepository = paymentRepository;
@@ -37,6 +39,7 @@ public class PaymentService : IPaymentService
         _walletTransactionRepository = walletTransactionRepository;
         _unitOfWork = unitOfWork;
         _currentUserService = currentUserService;
+        _validationService = validationService;
         _logger = logger;
     }
 
@@ -46,6 +49,10 @@ public class PaymentService : IPaymentService
     {
         try
         {
+            var (isValid, errors) = await _validationService.ValidateAsync(request, cancellationToken);
+            if (!isValid)
+                return ApiResponse<PaymentDto>.FailureResponse(errors);
+
             await _unitOfWork.BeginTransactionAsync(cancellationToken);
 
             var facilityId = _currentUserService.FacilityId;
@@ -63,14 +70,10 @@ public class PaymentService : IPaymentService
             }
 
             if (invoice.Status == InvoiceStatus.Paid)
-            {
                 return ApiResponse<PaymentDto>.FailureResponse("Invoice is already paid");
-            }
 
             if (invoice.Status == InvoiceStatus.Cancelled)
-            {
                 return ApiResponse<PaymentDto>.FailureResponse("Cannot process payment for a cancelled invoice");
-            }
 
             if (request.Amount > invoice.OutstandingAmount)
             {
@@ -82,9 +85,7 @@ public class PaymentService : IPaymentService
             {
                 var wallet = invoice.Patient.Wallet;
                 if (wallet == null || wallet.Balance < request.Amount)
-                {
                     return ApiResponse<PaymentDto>.FailureResponse("Insufficient wallet balance");
-                }
 
                 var balanceBefore = wallet.Balance;
                 wallet.Balance -= request.Amount;
@@ -183,9 +184,7 @@ public class PaymentService : IPaymentService
                 .FirstOrDefaultAsync(p => p.Id == id && p.Invoice.FacilityId == facilityId && !p.IsDeleted, cancellationToken);
 
             if (payment == null)
-            {
                 return ApiResponse<PaymentDto>.FailureResponse("Payment not found");
-            }
 
             var dto = MapToDto(payment);
             return ApiResponse<PaymentDto>.SuccessResponse(dto);
@@ -209,9 +208,7 @@ public class PaymentService : IPaymentService
                 .FirstOrDefaultAsync(i => i.Id == invoiceId && i.FacilityId == facilityId && !i.IsDeleted, cancellationToken);
 
             if (invoice == null)
-            {
                 return ApiResponse<IEnumerable<PaymentDto>>.FailureResponse("Invoice not found");
-            }
 
             var payments = await _paymentRepository.Query()
                 .Where(p => p.InvoiceId == invoiceId && !p.IsDeleted)

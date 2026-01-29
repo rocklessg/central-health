@@ -11,6 +11,7 @@ public static class DependencyInjection
     {
         services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
+        services.AddScoped<IValidationService, ValidationService>();
         services.AddScoped<IRecordsService, RecordsService>();
         services.AddScoped<IAppointmentService, AppointmentService>();
         services.AddScoped<IInvoiceService, InvoiceService>();
