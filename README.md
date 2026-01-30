@@ -1,16 +1,6 @@
 # CentralHealth API
 
-A healthcare management backend API built with .NET 8, following clean architecture principles. This API is designed for **Front Desk staff** operations.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Tech Stack](#tech-stack)
-- [Setup Instructions](#setup-instructions)
-- [API Endpoints](#api-endpoints)
-- [Request Examples](#request-examples)
-- [User Stories](#user-stories)
-- [Logging](#logging)
+A healthcare management backend API built with .NET 8, following clean architecture principles.
 
 ## Overview
 
@@ -62,8 +52,6 @@ CentralHealth API provides backend services for front desk staff at healthcare f
 cd CentralHealth.Api
 dotnet run
 ```
-
-The API will be available at `https://localhost:5001` or `http://localhost:5000`.
 
 Swagger UI is available at `/swagger` in development mode.
 
@@ -121,12 +109,7 @@ Content-Type: application/json
   "code": "CH-001",
   "address": "123 Healthcare Avenue",
   "phone": "+234-800-000-0001",
-  "email": "info@centralhealth.com",
-  "adminUsername": "admin",
-  "adminEmail": "admin@centralhealth.com",
-  "adminFirstName": "System",
-  "adminLastName": "Administrator",
-  "adminPassword": "Admin@123"
+  "email": "info@centralhealth.com"
 }
 ```
 
