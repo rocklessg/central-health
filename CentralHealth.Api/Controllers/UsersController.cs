@@ -2,6 +2,7 @@ using CentralHealth.Application.Common;
 using CentralHealth.Application.DTOs.Users;
 using CentralHealth.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace CentralHealth.Api.Controllers;
 
@@ -28,7 +29,7 @@ public class UsersController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<UserDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetUser(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetUser(Guid id, [FromQuery] [Required] Guid facilityId, CancellationToken cancellationToken)
     {
         var result = await _userService.GetUserByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);

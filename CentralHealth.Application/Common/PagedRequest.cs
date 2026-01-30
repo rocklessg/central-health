@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace CentralHealth.Application.Common;
 
 public abstract class PagedRequest
@@ -5,6 +7,7 @@ public abstract class PagedRequest
     private int _pageNumber = 1;
     private int _pageSize = 20;
 
+    [Required]
     public Guid FacilityId { get; set; }
     
     public int PageNumber

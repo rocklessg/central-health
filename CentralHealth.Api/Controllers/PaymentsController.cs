@@ -2,6 +2,7 @@ using CentralHealth.Application.Common;
 using CentralHealth.Application.DTOs.Payments;
 using CentralHealth.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace CentralHealth.Api.Controllers;
 
@@ -28,7 +29,7 @@ public class PaymentsController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<PaymentDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPayment(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPayment(Guid id, [FromQuery] [Required] Guid facilityId, CancellationToken cancellationToken)
     {
         var result = await _paymentService.GetPaymentByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
@@ -37,7 +38,7 @@ public class PaymentsController : ControllerBase
     [HttpGet("invoice/{invoiceId:guid}")]
     [ProducesResponseType(typeof(ApiResponse<IEnumerable<PaymentDto>>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPaymentsByInvoice(Guid invoiceId, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPaymentsByInvoice(Guid invoiceId, [FromQuery] [Required] Guid facilityId, CancellationToken cancellationToken)
     {
         var result = await _paymentService.GetPaymentsByInvoiceIdAsync(invoiceId, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);

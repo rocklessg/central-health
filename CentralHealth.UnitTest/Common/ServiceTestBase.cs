@@ -20,6 +20,20 @@ public abstract class ServiceTestBase<TService>
         ValidationServiceMock
             .Setup(x => x.ValidateAsync(It.IsAny<object>(), It.IsAny<CancellationToken>()))
             .ReturnsAsync((true, new List<string>()));
+
+        // Default: transaction operations complete successfully
+        UnitOfWorkMock
+            .Setup(x => x.BeginTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        UnitOfWorkMock
+            .Setup(x => x.CommitTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        UnitOfWorkMock
+            .Setup(x => x.RollbackTransactionAsync(It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+        UnitOfWorkMock
+            .Setup(x => x.SaveChangesAsync(It.IsAny<CancellationToken>()))
+            .ReturnsAsync(1);
     }
 
     protected Mock<ILogger<T>> CreateLoggerMock<T>()

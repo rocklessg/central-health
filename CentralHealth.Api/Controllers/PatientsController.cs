@@ -2,6 +2,7 @@ using CentralHealth.Application.Common;
 using CentralHealth.Application.DTOs.Patients;
 using CentralHealth.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace CentralHealth.Api.Controllers;
 
@@ -28,15 +29,15 @@ public class PatientsController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<PatientDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetPatient(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPatient(Guid id, [FromQuery] [Required] Guid facilityId, CancellationToken cancellationToken)
     {
         var result = await _patientService.GetPatientByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
     }
 
-    [HttpPost("search")]
+    [HttpGet("search")]
     [ProducesResponseType(typeof(ApiResponse<PagedResult<PatientDto>>), StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetPatients([FromBody] GetPatientsRequest request, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetPatients([FromQuery] GetPatientsRequest request, CancellationToken cancellationToken)
     {
         var result = await _patientService.GetPatientsAsync(request, cancellationToken);
         return Ok(result);

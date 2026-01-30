@@ -2,6 +2,7 @@ using CentralHealth.Application.Common;
 using CentralHealth.Application.DTOs.Invoices;
 using CentralHealth.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+using System.ComponentModel.DataAnnotations;
 
 namespace CentralHealth.Api.Controllers;
 
@@ -28,7 +29,7 @@ public class InvoicesController : ControllerBase
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<InvoiceDto>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse), StatusCodes.Status404NotFound)]
-    public async Task<IActionResult> GetInvoice(Guid id, [FromQuery] Guid facilityId, CancellationToken cancellationToken)
+    public async Task<IActionResult> GetInvoice(Guid id, [FromQuery] [Required] Guid facilityId, CancellationToken cancellationToken)
     {
         var result = await _invoiceService.GetInvoiceByIdAsync(id, facilityId, cancellationToken);
         return result.Success ? Ok(result) : NotFound(result);
