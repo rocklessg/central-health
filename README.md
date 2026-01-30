@@ -55,6 +55,30 @@ dotnet run
 
 Swagger UI is available at `/swagger` in development mode.
 
+### Architecture and Design Patterns Used
+
+- **Repository Pattern**: Abstracts data access logic
+- **Unit of Work**: Manages transactions across multiple repositories
+- **Clean Architecture**: Separation of concerns with dependency inversion
+- **Unified Response Pattern**: Consistent API response structure
+
+## Important Notes
+
+1. **Logging**: All key events are logged including:
+   - Records list loading
+   - Filter and search operations
+   - Appointment/Invoice/Payment creation
+   - Status changes
+   - Errors
+
+2. **Error Handling**: Global exception handling middleware provides consistent error responses.
+
+3. **Validation**: All requests are validated using FluentValidation before processing.
+
+4. **Pagination**: Default page size is 20, maximum is 100.
+
+5. **Database Migrations**: Run migrations before first use or when model changes occur.
+
 ## API Endpoints
 
 ### Facility Setup
@@ -222,38 +246,6 @@ Content-Type: application/json
   "username": "frontdesk"
 }
 ```
-
-## User Stories
-
-### Story 1: Records Landing Screen
-View patient records with:
-- Patient name/code, appointment time, status, clinic, wallet balance
-- Time window filter (default: today), clinic filter
-- Text search (patient name, code, phone)
-- Sorting by time (default: ascending)
-- Pagination (default page size: 20)
-
-### Story 2: Create/Schedule Appointments
-Create appointments with:
-- Patient, clinic, appointment type, date, and time
-- Conflict detection for duplicate appointments
-
-### Story 3: Create Invoices
-Create invoices with:
-- Itemized medical services
-- Automatic discount calculations
-- Status transition: CheckedIn ? AwaitingPayment
-
-### Story 4: Process Payments
-Process payments with:
-- Multiple payment methods (Cash, Card, Transfer, Wallet)
-- Real-time payment tracking
-- Wallet balance deduction for wallet payments
-
-### Story 5: Status Workflow
-When invoice is fully paid:
-- Appointment status changes from AwaitingPayment ? AwaitingVitals
-
 ## Logging
 
 All key events are logged as per acceptance criteria:
@@ -272,7 +264,21 @@ All key events are logged as per acceptance criteria:
 - **Console**: Real-time log output during development
 - **File**: Logs saved to `logs/centralhealth-{date}.log`
 
-## License
+## Assumptions
 
-This project is licensed under the MIT License.
+1. **Authentication/Authorization**: The API expects facility scoping via `facilityId`.
+ HTTP headers (`X-Facility-Id`, `X-User-Id`, `X-Username`, `X-User-Role`) can be used in production grade level. These would be extracted from JWT tokens or similar authentication mechanisms.
 
+2. **Multi-tenancy**: The system supports multiple facilities with data isolation based on FacilityId.
+
+3. **Currency**: Default currency is NGN (Nigerian Naira). The system supports currency per transaction.
+
+4. **Appointment Workflow**: 
+   - Scheduled -> CheckedIn -> AwaitingPayment (after invoice creation) -> AwaitingVitals (after payment) -> InProgress -> Completed
+
+5. **Invoice Status Flow**:
+   - Draft -> Pending -> PartiallyPaid/Paid -> (or Cancelled/Refunded)
+
+6. **Wallet Payments**: Patients can have wallet balances that can be used for payments.
+
+7. **Soft Deletes**: All entities support soft deletion via `IsDeleted` flag.
